@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-postman-clone",
+  "name": "Postman Clone",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "An API request collection plugin for Obsidian like Postman.",
+  "author": "Jules",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

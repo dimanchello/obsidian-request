@@ -72,7 +72,9 @@ class PostmanCollectionView extends TextFileView {
 export default class PostmanClonePlugin extends Plugin {
     async onload() {
         this.registerView(VIEW_TYPE_POSTMAN_COLLECTION, (leaf) => new PostmanCollectionView(leaf));
-        this.registerExtensions(['json', 'md'], VIEW_TYPE_POSTMAN_COLLECTION);
+        // We do not register '.md' here because it conflicts with Obsidian's default markdown view.
+        // We rely on the "file-open" event below to switch the view if the file has our frontmatter.
+        this.registerExtensions(['postmancollection'], VIEW_TYPE_POSTMAN_COLLECTION);
         this.registerEvent(this.app.workspace.on("file-open", (file) => {
             if (file && file.extension === 'md') {
                 const cache = this.app.metadataCache.getFileCache(file);

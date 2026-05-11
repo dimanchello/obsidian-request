@@ -1,0 +1,69 @@
+/*
+  Obsidian Postman Clone Plugin Styles
+  These styles augment the inline React styles and use Obsidian CSS variables.
+*/
+
+.postman-clone-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* Custom scrollbar for better UI experience in the plugin panels */
+.postman-clone-root ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.postman-clone-root ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.postman-clone-root ::-webkit-scrollbar-thumb {
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+}
+
+.postman-clone-root ::-webkit-scrollbar-thumb:hover {
+    background: var(--interactive-accent);
+}
+
+/* Hover effects for buttons that don't have active backgrounds */
+.postman-clone-root button {
+    transition: background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+}
+
+.postman-clone-root button:hover {
+    opacity: 0.9;
+}
+
+.postman-clone-root button:active {
+    opacity: 0.8;
+}
+
+/* Hover effects for list items */
+.postman-request-item {
+    transition: background-color 0.1s ease-in-out;
+}
+
+.postman-request-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .postman-clone-root .sidebar {
+        width: 150px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .postman-clone-root .sidebar {
+        display: none; /* In a real mobile app, you'd add a toggle button */
+    }
+    .postman-clone-root {
+        flex-direction: column;
+    }
+}

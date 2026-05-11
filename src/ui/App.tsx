@@ -2,6 +2,7 @@ import * as React from 'react';
 import { JSONPath } from 'jsonpath-plus';
 import { CollectionData, RequestItem, Environment, ExtractionRule, Variable } from '../types';
 import { executeRequest } from '../network';
+import { importPostmanCollection, exportPostmanCollection } from '../postmanFormat';
 
 interface AppProps {
     data: CollectionData;
@@ -45,6 +46,50 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         if (window.innerWidth <= 768) setMobileSidebarOpen(false);
     };
 
+    const handleImport = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e: any) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target?.result as string;
+                if (content) {
+                    try {
+                        const importedRequests = importPostmanCollection(content);
+                        if (importedRequests.length > 0) {
+                            handleSave({ ...collectionData, requests: [...collectionData.requests, ...importedRequests] });
+                            alert(`Imported ${importedRequests.length} requests!`);
+                        }
+                    } catch (err: any) {
+                        alert(err.message);
+                    }
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
+    const handleExport = () => {
+        try {
+            const json = exportPostmanCollection(collectionData, "Obsidian Export");
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `obsidian_api_collection_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch(e) {
+            alert("Export failed");
+        }
+    };
+
     return (
         <div className="postman-clone-root">
             <div className={`postman-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
@@ -86,6 +131,10 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     <button style={{ width: '100%', marginTop: '10px', background: 'transparent', border: '1px dashed var(--background-modifier-border)', color: 'var(--text-muted)', padding: '8px', borderRadius: '4px', cursor: 'pointer' }} onClick={addNewRequest}>
                         + Add Request
                     </button>
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
+                        <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={handleImport}>Import</button>
+                        <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={handleExport}>Export</button>
+                    </div>
                 </div>
             </div>
 

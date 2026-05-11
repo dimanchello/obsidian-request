@@ -218,6 +218,73 @@ const EnvironmentManager = ({ collectionData, onSave, onClose }: any) => {
     );
 };
 
+const HighlightedInput = ({ value, onChange, className, style, placeholder, collectionData }: any) => {
+    const [isEditing, setIsEditing] = React.useState(false);
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    React.useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isEditing]);
+
+    const activeEnv = collectionData.environments.find((e: Environment) => e.id === collectionData.activeEnvironmentId);
+
+    const getVariableValue = (varName: string) => {
+        if (!activeEnv) return 'No active environment';
+        const variable = activeEnv.variables.find((v: Variable) => v.key === varName && v.enabled);
+        return variable ? variable.value : 'Unresolved variable';
+    };
+
+    const renderHighlightedText = () => {
+        if (!value) return <span style={{ color: 'var(--text-faint)' }}>{placeholder}</span>;
+
+        const regex = /({{.*?}})/g;
+        const parts = value.split(regex);
+
+        return parts.map((part: string, i: number) => {
+            if (part.startsWith('{{') && part.endsWith('}}')) {
+                const varName = part.substring(2, part.length - 2);
+                return (
+                    <span key={i} className="postman-var-highlight" title={getVariableValue(varName)}>
+                        {part}
+                    </span>
+                );
+            }
+            return <span key={i}>{part}</span>;
+        });
+    };
+
+    if (isEditing) {
+        return (
+            <input
+                ref={inputRef}
+                className={className}
+                style={style}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onBlur={() => setIsEditing(false)}
+                placeholder={placeholder}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') setIsEditing(false);
+                }}
+            />
+        );
+    }
+
+    return (
+        <div
+            className={`postman-highlighted-input-container ${className || ''}`}
+            style={style}
+            onClick={() => setIsEditing(true)}
+        >
+            <div className="postman-highlighted-input-display">
+                {renderHighlightedText()}
+            </div>
+        </div>
+    );
+};
+
 const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) => {
     const [activeTab, setActiveTab] = React.useState('Params');
     const [response, setResponse] = React.useState<any>(null);
@@ -259,8 +326,18 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
             {request[listKey].map((item: Variable, i: number) => (
                 <div key={i} className="postman-kv-row">
                     <input type="checkbox" checked={item.enabled} onChange={(e) => updateVariableList(listKey, i, 'enabled', e.target.checked)} />
-                    <input className="postman-kv-input" style={{ flex: 1 }} placeholder="Key" value={item.key} onChange={(e) => updateVariableList(listKey, i, 'key', e.target.value)} />
-                    <input className="postman-kv-input" style={{ flex: 2 }} placeholder="Value" value={item.value} onChange={(e) => updateVariableList(listKey, i, 'value', e.target.value)} />
+                    <HighlightedInput
+                        className="postman-kv-input" style={{ flex: 1 }}
+                        placeholder="Key" value={item.key}
+                        onChange={(val: string) => updateVariableList(listKey, i, 'key', val)}
+                        collectionData={collectionData}
+                    />
+                    <HighlightedInput
+                        className="postman-kv-input" style={{ flex: 2 }}
+                        placeholder="Value" value={item.value}
+                        onChange={(val: string) => updateVariableList(listKey, i, 'value', val)}
+                        collectionData={collectionData}
+                    />
                     <button className="btn-ghost" onClick={() => {
                         const newList = [...request[listKey]]; newList.splice(i, 1); onChange({ ...request, [listKey]: newList });
                     }}>×</button>
@@ -292,11 +369,11 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                         <option value="OPTIONS">OPTIONS</option>
                         <option value="HEAD">HEAD</option>
                     </select>
-                    <input
+                    <HighlightedInput
                         value={request.url}
-                        onChange={(e) => onChange({ ...request, url: e.target.value })}
+                        onChange={(val: string) => onChange({ ...request, url: val })}
                         placeholder="Enter request URL"
-                        onKeyDown={(e) => { if(e.key === 'Enter') handleSend(); }}
+                        collectionData={collectionData}
                     />
                     <button onClick={handleSend} disabled={loading}>
                         {loading ? <span className="loading-spinner"></span> : 'Send'}
@@ -410,11 +487,14 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                     {!loading && response && response.response && (
                         <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                             {(() => {
-                                try {
-                                    return JSON.stringify(response.response.json, null, 2) || response.response.text;
-                                } catch(e) {
-                                    return response.response.text;
+                                if (response.response.json) {
+                                    try {
+                                        return JSON.stringify(response.response.json, null, 2);
+                                    } catch(e) {
+                                        return response.response.text;
+                                    }
                                 }
+                                return response.response.text;
                             })()}
                         </pre>
                     )}

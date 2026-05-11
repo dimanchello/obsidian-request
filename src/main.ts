@@ -1,4 +1,4 @@
-import { Plugin, TextFileView, WorkspaceLeaf, TFile } from 'obsidian';
+import { Plugin, TextFileView, WorkspaceLeaf, TFile, MarkdownView } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { App } from './ui/App';
@@ -72,22 +72,74 @@ class PostmanCollectionView extends TextFileView {
 export default class PostmanClonePlugin extends Plugin {
     async onload() {
         this.registerView(VIEW_TYPE_POSTMAN_COLLECTION, (leaf) => new PostmanCollectionView(leaf));
-        // We do not register '.md' here because it conflicts with Obsidian's default markdown view.
-        // We rely on the "file-open" event below to switch the view if the file has our frontmatter.
         this.registerExtensions(['postmancollection'], VIEW_TYPE_POSTMAN_COLLECTION);
-        this.registerEvent(this.app.workspace.on("file-open", (file) => {
+
+        // This button will appear on all markdown files, but we can configure it to only show
+        // or be clickable when it's an api-collection
+        this.registerEvent(
+            this.app.workspace.on('layout-change', () => {
+                this.checkActiveLeaves();
+            })
+        );
+
+        // Also check on load in case the file was open when Obsidian started
+        this.app.workspace.onLayoutReady(() => {
+            this.checkActiveLeaves();
+        });
+
+        // Add a ribbon icon as a fallback to manually convert the active markdown file
+        this.addRibbonIcon('zap', 'Open as API Collection', async () => {
+            const file = this.app.workspace.getActiveFile();
             if (file && file.extension === 'md') {
+                this.activateCollectionView(file);
+            }
+        });
+
+        // Add a command to the command palette
+        this.addCommand({
+            id: 'open-as-api-collection',
+            name: 'Open active file as API Collection',
+            checkCallback: (checking: boolean) => {
+                const file = this.app.workspace.getActiveFile();
+                if (file && file.extension === 'md') {
+                    if (!checking) {
+                        this.activateCollectionView(file);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    // Check all leaves to see if any are standard markdown views but have the api-collection frontmatter
+    checkActiveLeaves() {
+        const leaves = this.app.workspace.getLeavesOfType("markdown");
+        for (const leaf of leaves) {
+            if (leaf.view instanceof MarkdownView && leaf.view.file) {
+                const file = leaf.view.file;
                 const cache = this.app.metadataCache.getFileCache(file);
                 if (cache?.frontmatter && cache.frontmatter['api-collection'] === true) {
-                    this.activateCollectionView(file);
+                    // It's a markdown view, but it should be our custom view. Switch it!
+                    this.activateCollectionViewForLeaf(file, leaf);
                 }
             }
-        }));
+        }
+    }
+
+    async activateCollectionViewForLeaf(file: TFile, leaf: WorkspaceLeaf) {
+        // Prevent infinite loops by checking the type first
+        if (leaf.view.getViewType() !== VIEW_TYPE_POSTMAN_COLLECTION) {
+             await leaf.setViewState({
+                type: VIEW_TYPE_POSTMAN_COLLECTION,
+                state: leaf.view.getState()
+            });
+        }
     }
 
     async activateCollectionView(file: TFile) {
-        const leaf = this.app.workspace.getMostRecentLeaf();
-        if (leaf) {
+        let leaf = this.app.workspace.getLeaf(false);
+        if (leaf.view.getViewType() !== VIEW_TYPE_POSTMAN_COLLECTION) {
             await leaf.setViewState({
                 type: VIEW_TYPE_POSTMAN_COLLECTION,
                 state: { file: file.path }

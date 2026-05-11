@@ -1,69 +1,368 @@
 /*
   Obsidian Postman Clone Plugin Styles
-  These styles augment the inline React styles and use Obsidian CSS variables.
+  Modern, clean, responsive UI heavily relying on Obsidian's CSS variables.
 */
 
 .postman-clone-root {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100%;
     width: 100%;
     overflow: hidden;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
 }
 
-/* Custom scrollbar for better UI experience in the plugin panels */
+/* Scrollbars */
 .postman-clone-root ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
-
 .postman-clone-root ::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .postman-clone-root ::-webkit-scrollbar-thumb {
     background: var(--background-modifier-border);
     border-radius: 4px;
 }
-
 .postman-clone-root ::-webkit-scrollbar-thumb:hover {
-    background: var(--interactive-accent);
+    background: var(--text-muted);
 }
 
-/* Hover effects for buttons that don't have active backgrounds */
-.postman-clone-root button {
-    transition: background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+/* Sidebar */
+.postman-sidebar {
+    width: 250px;
+    border-right: 1px solid var(--background-modifier-border-hover);
+    background-color: var(--background-secondary);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
 }
 
-.postman-clone-root button:hover {
-    opacity: 0.9;
+.postman-sidebar-header {
+    padding: 15px;
+    border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.postman-clone-root button:active {
-    opacity: 0.8;
+.postman-request-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
 }
 
-/* Hover effects for list items */
 .postman-request-item {
-    transition: background-color 0.1s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    transition: background-color 0.1s ease;
 }
 
 .postman-request-item:hover {
     background-color: var(--background-modifier-hover);
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .postman-clone-root .sidebar {
-        width: 150px !important;
-    }
+.postman-request-item.active {
+    background-color: var(--background-modifier-active-hover);
 }
 
-@media (max-width: 480px) {
-    .postman-clone-root .sidebar {
-        display: none; /* In a real mobile app, you'd add a toggle button */
+.postman-method-badge {
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 8px;
+    min-width: 40px;
+}
+.method-GET { color: var(--color-green); }
+.method-POST { color: var(--color-yellow); }
+.method-PUT { color: var(--color-blue); }
+.method-PATCH { color: var(--color-purple); }
+.method-DELETE { color: var(--color-red); }
+.method-OPTIONS, .method-HEAD { color: var(--text-muted); }
+
+/* Main Area */
+.postman-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background-primary);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Mobile Header / Sidebar Toggle */
+.postman-mobile-header {
+    display: none;
+    padding: 10px 15px;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    align-items: center;
+    gap: 10px;
+}
+.postman-mobile-header button {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 5px;
+    color: var(--text-muted);
+}
+
+/* Editor Header */
+.postman-editor-header {
+    padding: 15px 20px 0 20px;
+}
+
+.postman-request-title-input {
+    font-size: 1.2em;
+    font-weight: 600;
+    background: transparent;
+    border: none !important;
+    border-bottom: 1px solid transparent !important;
+    color: var(--text-normal);
+    width: 100%;
+    padding: 5px 0;
+    margin-bottom: 15px;
+    transition: border-color 0.2s;
+    box-shadow: none !important;
+}
+.postman-request-title-input:hover, .postman-request-title-input:focus {
+    border-bottom: 1px solid var(--interactive-accent) !important;
+}
+
+/* URL Bar */
+.postman-url-bar {
+    display: flex;
+    border: 1px solid var(--background-modifier-border-hover);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    background-color: var(--background-primary);
+}
+
+.postman-url-bar select {
+    border: none;
+    border-right: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
+    padding: 10px;
+    font-weight: 600;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.postman-url-bar input {
+    flex: 1;
+    border: none !important;
+    padding: 10px 15px;
+    font-family: var(--font-monospace);
+    background: transparent;
+    box-shadow: none !important;
+}
+
+.postman-url-bar button {
+    border: none;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    padding: 0 25px;
+    font-weight: 600;
+    border-radius: 0;
+    cursor: pointer;
+    box-shadow: none;
+}
+.postman-url-bar button:hover {
+    opacity: 0.9;
+}
+.postman-url-bar button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Tabs */
+.postman-tabs-header {
+    display: flex;
+    border-bottom: 1px solid var(--background-modifier-border);
+    margin: 0 20px;
+    gap: 20px;
+}
+
+.postman-tab {
+    padding: 10px 5px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.postman-tab:hover {
+    color: var(--text-normal);
+}
+
+.postman-tab.active {
+    color: var(--text-normal);
+    border-bottom: 2px solid var(--interactive-accent);
+    font-weight: 600;
+}
+
+/* Tab Content */
+.postman-tab-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* Key Value Table */
+.postman-kv-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.postman-kv-input {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    box-shadow: none !important;
+}
+
+.postman-kv-input:focus {
+    border-color: var(--interactive-accent);
+}
+
+/* Response Area */
+.postman-response-area {
+    height: 35%;
+    min-height: 200px;
+    border-top: 1px solid var(--background-modifier-border-hover);
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background-primary);
+}
+
+.postman-response-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    font-size: 0.9em;
+}
+
+.postman-response-status {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.postman-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85em;
+    background-color: var(--background-modifier-border);
+}
+.postman-badge.success { color: var(--color-green); background-color: rgba(var(--color-green-rgb), 0.1); }
+.postman-badge.error { color: var(--color-red); background-color: rgba(var(--color-red-rgb), 0.1); }
+
+.postman-response-body {
+    flex: 1;
+    padding: 15px 20px;
+    overflow: auto;
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+/* Modal Environment Manager */
+.postman-modal-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+}
+
+.postman-modal {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border-hover);
+    border-radius: 8px;
+    width: 80%;
+    max-width: 800px;
+    height: 70%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    overflow: hidden;
+}
+
+/* Utils */
+.btn-ghost {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.btn-ghost:hover {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover) !important;
+}
+
+/* Spinner */
+.loading-spinner {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 2px solid #fff;
+    width: 14px;
+    height: 14px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .postman-sidebar {
+        position: absolute;
+        z-index: 50;
+        height: 100%;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 10px rgba(0,0,0,0.2);
     }
-    .postman-clone-root {
+    .postman-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+    .postman-mobile-header {
+        display: flex;
+    }
+    .postman-url-bar {
         flex-direction: column;
+    }
+    .postman-url-bar select { border-right: none; border-bottom: 1px solid var(--background-modifier-border); }
+    .postman-url-bar button { padding: 15px; }
+
+    .postman-modal {
+        width: 95%;
+        height: 90%;
+        flex-direction: column;
+    }
+    .postman-modal .env-sidebar {
+        width: 100% !important;
+        height: 150px;
+        border-right: none !important;
+        border-bottom: 1px solid var(--background-modifier-border);
     }
 }

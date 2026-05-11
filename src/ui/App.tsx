@@ -14,6 +14,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         data.requests.length > 0 ? data.requests[0].id : null
     );
     const [showEnvManager, setShowEnvManager] = React.useState(false);
+    const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
 
     React.useEffect(() => {
         setCollectionData(data);
@@ -41,20 +42,21 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         };
         handleSave({ ...collectionData, requests: [...collectionData.requests, newReq] });
         setActiveReqId(newReq.id);
+        if (window.innerWidth <= 768) setMobileSidebarOpen(false);
     };
 
     return (
-        <div className="postman-clone-root" style={{ display: 'flex', height: '100%', width: '100%', fontFamily: 'var(--font-interface)' }}>
-            <div className="sidebar" style={{ width: '250px', borderRight: '1px solid var(--background-modifier-border)', padding: '10px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Environment</label>
-                        <button style={{ fontSize: '10px', padding: '2px 5px', background: 'transparent', border: '1px solid var(--background-modifier-border)' }} onClick={() => setShowEnvManager(!showEnvManager)}>
-                            ⚙️ Manage
+        <div className="postman-clone-root">
+            <div className={`postman-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
+                <div className="postman-sidebar-header">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Environment</label>
+                        <button className="btn-ghost" style={{ padding: '2px 5px', fontSize: '11px' }} onClick={() => setShowEnvManager(true)}>
+                            ⚙️
                         </button>
                     </div>
                     <select
-                        style={{ width: '100%', background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)' }}
+                        style={{ width: '100%', background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '5px', borderRadius: '4px' }}
                         value={collectionData.activeEnvironmentId || ''}
                         onChange={(e) => handleSave({ ...collectionData, activeEnvironmentId: e.target.value })}
                     >
@@ -64,14 +66,16 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </select>
                 </div>
 
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div className="postman-request-list">
                     {collectionData.requests.map((req: RequestItem) => (
-                        <div key={req.id} onClick={() => setActiveReqId(req.id)} className="postman-request-item" style={{ cursor: 'pointer', padding: '5px', borderRadius: '4px', background: activeReqId === req.id ? 'var(--background-modifier-active-hover)' : 'transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <span style={{ fontSize: '10px', fontWeight: 'bold', marginRight: '5px', color: req.method === 'GET' ? 'var(--color-green)' : req.method === 'POST' ? 'var(--color-yellow)' : req.method === 'DELETE' ? 'var(--color-red)' : 'var(--text-accent)' }}>{req.method}</span>
-                                <span style={{ fontSize: '14px' }}>{req.name}</span>
+                        <div key={req.id}
+                             onClick={() => { setActiveReqId(req.id); if (window.innerWidth <= 768) setMobileSidebarOpen(false); }}
+                             className={`postman-request-item ${activeReqId === req.id ? 'active' : ''}`}>
+                            <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                                <span className={`postman-method-badge method-${req.method}`}>{req.method}</span>
+                                <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.name}</span>
                             </div>
-                            <button style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)' }} onClick={(e) => {
+                            <button className="btn-ghost" onClick={(e) => {
                                 e.stopPropagation();
                                 const newReqs = collectionData.requests.filter(r => r.id !== req.id);
                                 handleSave({ ...collectionData, requests: newReqs });
@@ -79,16 +83,19 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                             }}>×</button>
                         </div>
                     ))}
+                    <button style={{ width: '100%', marginTop: '10px', background: 'transparent', border: '1px dashed var(--background-modifier-border)', color: 'var(--text-muted)', padding: '8px', borderRadius: '4px', cursor: 'pointer' }} onClick={addNewRequest}>
+                        + Add Request
+                    </button>
                 </div>
-                <button style={{ marginTop: '10px', background: 'var(--interactive-accent)', color: 'var(--text-on-accent)', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }} onClick={addNewRequest}>
-                    + Add Request
-                </button>
             </div>
 
-            <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                {showEnvManager ? (
-                    <EnvironmentManager collectionData={collectionData} onSave={handleSave} onClose={() => setShowEnvManager(false)} />
-                ) : activeReq ? (
+            <div className="postman-main">
+                <div className="postman-mobile-header">
+                    <button onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}>☰</button>
+                    <span style={{ fontWeight: 'bold' }}>API Collection</span>
+                </div>
+
+                {activeReq ? (
                     <RequestEditor
                         request={activeReq}
                         collectionData={collectionData}
@@ -119,6 +126,10 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </div>
                 )}
             </div>
+
+            {showEnvManager && (
+                <EnvironmentManager collectionData={collectionData} onSave={handleSave} onClose={() => setShowEnvManager(false)} />
+            )}
         </div>
     );
 };
@@ -134,70 +145,73 @@ const EnvironmentManager = ({ collectionData, onSave, onClose }: any) => {
     };
 
     const addEnv = () => {
-        const newEnv: Environment = { id: Date.now().toString(), name: 'New Env', variables: [] };
+        const newEnv: Environment = { id: Date.now().toString(), name: 'New Environment', variables: [] };
         onSave({ ...collectionData, environments: [...collectionData.environments, newEnv] });
         setActiveEnvId(newEnv.id);
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--background-modifier-border)', paddingBottom: '10px', marginBottom: '20px' }}>
-                <h2 style={{ margin: 0 }}>Manage Environments</h2>
-                <button onClick={onClose}>Close</button>
-            </div>
-            <div style={{ display: 'flex', flex: 1, gap: '20px' }}>
-                <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    {collectionData.environments.map((env: Environment) => (
-                        <div key={env.id} onClick={() => setActiveEnvId(env.id)} style={{ cursor: 'pointer', padding: '5px', background: activeEnvId === env.id ? 'var(--background-modifier-active-hover)' : 'transparent', display: 'flex', justifyContent: 'space-between' }}>
-                            {env.name}
-                            <button style={{ background: 'transparent', border: 'none', padding: 0 }} onClick={(e) => {
-                                e.stopPropagation();
-                                const newEnvs = collectionData.environments.filter((e2: Environment) => e2.id !== env.id);
-                                onSave({ ...collectionData, environments: newEnvs, activeEnvironmentId: collectionData.activeEnvironmentId === env.id ? null : collectionData.activeEnvironmentId });
-                            }}>×</button>
-                        </div>
-                    ))}
-                    <button onClick={addEnv}>+ Add Env</button>
+        <div className="postman-modal-overlay" onClick={onClose}>
+            <div className="postman-modal" onClick={e => e.stopPropagation()}>
+                <div style={{ padding: '15px 20px', borderBottom: '1px solid var(--background-modifier-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--background-secondary)' }}>
+                    <h3 style={{ margin: 0 }}>Manage Environments</h3>
+                    <button className="btn-ghost" onClick={onClose}>✕</button>
                 </div>
-                <div style={{ flex: 1, borderLeft: '1px solid var(--background-modifier-border)', paddingLeft: '20px' }}>
-                    {activeEnv && (
-                        <div>
-                            <input
-                                style={{ fontSize: '18px', fontWeight: 'bold', background: 'transparent', border: 'none', borderBottom: '1px solid var(--background-modifier-border)', marginBottom: '15px', color: 'var(--text-normal)' }}
-                                value={activeEnv.name}
-                                onChange={(e) => handleEnvChange({ ...activeEnv, name: e.target.value })}
-                            />
-                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr>
-                                        <th style={{ padding: '5px', borderBottom: '1px solid var(--background-modifier-border)' }}></th>
-                                        <th style={{ padding: '5px', borderBottom: '1px solid var(--background-modifier-border)' }}>Variable</th>
-                                        <th style={{ padding: '5px', borderBottom: '1px solid var(--background-modifier-border)' }}>Value</th>
-                                        <th style={{ padding: '5px', borderBottom: '1px solid var(--background-modifier-border)' }}></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {activeEnv.variables.map((v: Variable, i: number) => (
-                                        <tr key={i}>
-                                            <td style={{ padding: '5px' }}><input type="checkbox" checked={v.enabled} onChange={(e) => {
-                                                const newVars = [...activeEnv.variables]; newVars[i].enabled = e.target.checked; handleEnvChange({ ...activeEnv, variables: newVars });
-                                            }}/></td>
-                                            <td style={{ padding: '5px' }}><input style={{ width: '100%', background: 'var(--background-modifier-form-field)' }} value={v.key} onChange={(e) => {
-                                                const newVars = [...activeEnv.variables]; newVars[i].key = e.target.value; handleEnvChange({ ...activeEnv, variables: newVars });
-                                            }}/></td>
-                                            <td style={{ padding: '5px' }}><input style={{ width: '100%', background: 'var(--background-modifier-form-field)' }} value={v.value} onChange={(e) => {
-                                                const newVars = [...activeEnv.variables]; newVars[i].value = e.target.value; handleEnvChange({ ...activeEnv, variables: newVars });
-                                            }}/></td>
-                                            <td style={{ padding: '5px' }}><button onClick={() => {
-                                                const newVars = [...activeEnv.variables]; newVars.splice(i, 1); handleEnvChange({ ...activeEnv, variables: newVars });
-                                            }}>×</button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            <button style={{ marginTop: '10px' }} onClick={() => handleEnvChange({ ...activeEnv, variables: [...activeEnv.variables, { key: '', value: '', enabled: true }] })}>+ Add Variable</button>
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                    <div className="env-sidebar" style={{ width: '220px', borderRight: '1px solid var(--background-modifier-border)', display: 'flex', flexDirection: 'column', background: 'var(--background-secondary)' }}>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+                            {collectionData.environments.map((env: Environment) => (
+                                <div key={env.id} onClick={() => setActiveEnvId(env.id)} className={`postman-request-item ${activeEnvId === env.id ? 'active' : ''}`} style={{ marginBottom: '2px' }}>
+                                    <span style={{ fontSize: '14px' }}>{env.name}</span>
+                                    <button className="btn-ghost" onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newEnvs = collectionData.environments.filter((e2: Environment) => e2.id !== env.id);
+                                        onSave({ ...collectionData, environments: newEnvs, activeEnvironmentId: collectionData.activeEnvironmentId === env.id ? null : collectionData.activeEnvironmentId });
+                                    }}>×</button>
+                                </div>
+                            ))}
                         </div>
-                    )}
+                        <div style={{ padding: '10px', borderTop: '1px solid var(--background-modifier-border)' }}>
+                            <button style={{ width: '100%', background: 'transparent', border: '1px dashed var(--background-modifier-border)', padding: '6px', borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer' }} onClick={addEnv}>+ Add Environment</button>
+                        </div>
+                    </div>
+                    <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+                        {activeEnv ? (
+                            <div>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '5px' }}>Environment Name</label>
+                                    <input
+                                        style={{ fontSize: '16px', fontWeight: 'bold', width: '100%', background: 'var(--background-primary)', border: '1px solid var(--background-modifier-border)', padding: '8px', borderRadius: '4px' }}
+                                        value={activeEnv.name}
+                                        onChange={(e) => handleEnvChange({ ...activeEnv, name: e.target.value })}
+                                    />
+                                </div>
+
+                                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Variables</label>
+                                {activeEnv.variables.map((v: Variable, i: number) => (
+                                    <div key={i} className="postman-kv-row">
+                                        <input type="checkbox" checked={v.enabled} onChange={(e) => {
+                                            const newVars = [...activeEnv.variables]; newVars[i].enabled = e.target.checked; handleEnvChange({ ...activeEnv, variables: newVars });
+                                        }}/>
+                                        <input className="postman-kv-input" style={{ flex: 1 }} placeholder="Variable key" value={v.key} onChange={(e) => {
+                                            const newVars = [...activeEnv.variables]; newVars[i].key = e.target.value; handleEnvChange({ ...activeEnv, variables: newVars });
+                                        }}/>
+                                        <input className="postman-kv-input" style={{ flex: 2 }} placeholder="Initial value" value={v.value} onChange={(e) => {
+                                            const newVars = [...activeEnv.variables]; newVars[i].value = e.target.value; handleEnvChange({ ...activeEnv, variables: newVars });
+                                        }}/>
+                                        <button className="btn-ghost" onClick={() => {
+                                            const newVars = [...activeEnv.variables]; newVars.splice(i, 1); handleEnvChange({ ...activeEnv, variables: newVars });
+                                        }}>×</button>
+                                    </div>
+                                ))}
+                                <button className="btn-ghost" style={{ marginTop: '10px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => handleEnvChange({ ...activeEnv, variables: [...activeEnv.variables, { key: '', value: '', enabled: true }] })}>
+                                    + Add Variable
+                                </button>
+                            </div>
+                        ) : (
+                            <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '50px' }}>Select an environment to edit</div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -243,149 +257,161 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     const renderVariableList = (listKey: 'queryParams' | 'headers') => (
         <div>
             {request[listKey].map((item: Variable, i: number) => (
-                <div key={i} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                <div key={i} className="postman-kv-row">
                     <input type="checkbox" checked={item.enabled} onChange={(e) => updateVariableList(listKey, i, 'enabled', e.target.checked)} />
-                    <input style={{ flex: 1, background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)' }} placeholder="Key" value={item.key} onChange={(e) => updateVariableList(listKey, i, 'key', e.target.value)} />
-                    <input style={{ flex: 2, background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)' }} placeholder="Value" value={item.value} onChange={(e) => updateVariableList(listKey, i, 'value', e.target.value)} />
-                    <button onClick={() => {
+                    <input className="postman-kv-input" style={{ flex: 1 }} placeholder="Key" value={item.key} onChange={(e) => updateVariableList(listKey, i, 'key', e.target.value)} />
+                    <input className="postman-kv-input" style={{ flex: 2 }} placeholder="Value" value={item.value} onChange={(e) => updateVariableList(listKey, i, 'value', e.target.value)} />
+                    <button className="btn-ghost" onClick={() => {
                         const newList = [...request[listKey]]; newList.splice(i, 1); onChange({ ...request, [listKey]: newList });
-                    }}>X</button>
+                    }}>×</button>
                 </div>
             ))}
-            <button style={{ marginTop: '10px' }} onClick={() => onChange({ ...request, [listKey]: [...request[listKey], { key: '', value: '', enabled: true }] })}>+ Add</button>
+            <button className="btn-ghost" style={{ marginTop: '10px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => onChange({ ...request, [listKey]: [...request[listKey], { key: '', value: '', enabled: true }] })}>
+                + Add
+            </button>
         </div>
     );
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <input
-                style={{ fontSize: '18px', fontWeight: 'bold', background: 'transparent', border: 'none', borderBottom: '1px solid var(--background-modifier-border)', marginBottom: '15px', color: 'var(--text-normal)' }}
-                value={request.name}
-                onChange={(e) => onChange({ ...request, name: e.target.value })}
-                placeholder="Request Name"
-            />
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                <select style={{ background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)' }} value={request.method} onChange={(e) => onChange({ ...request, method: e.target.value })}>
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                    <option value="PUT">PUT</option>
-                    <option value="PATCH">PATCH</option>
-                    <option value="DELETE">DELETE</option>
-                    <option value="OPTIONS">OPTIONS</option>
-                    <option value="HEAD">HEAD</option>
-                </select>
-                <input style={{ flex: 1, background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)', fontFamily: 'monospace' }} value={request.url} onChange={(e) => onChange({ ...request, url: e.target.value })} placeholder="Enter request URL" />
-                <button
-                    style={{ background: 'var(--interactive-accent)', color: 'var(--text-on-accent)', border: 'none', padding: '0 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                    onClick={handleSend}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span className="loading-spinner"></span> Sending...
-                        </span>
-                    ) : 'Send'}
-                </button>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div className="postman-editor-header">
+                <input
+                    className="postman-request-title-input"
+                    value={request.name}
+                    onChange={(e) => onChange({ ...request, name: e.target.value })}
+                    placeholder="Request Name"
+                />
+
+                <div className="postman-url-bar">
+                    <select value={request.method} onChange={(e) => onChange({ ...request, method: e.target.value })}>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="OPTIONS">OPTIONS</option>
+                        <option value="HEAD">HEAD</option>
+                    </select>
+                    <input
+                        value={request.url}
+                        onChange={(e) => onChange({ ...request, url: e.target.value })}
+                        placeholder="Enter request URL"
+                        onKeyDown={(e) => { if(e.key === 'Enter') handleSend(); }}
+                    />
+                    <button onClick={handleSend} disabled={loading}>
+                        {loading ? <span className="loading-spinner"></span> : 'Send'}
+                    </button>
+                </div>
             </div>
 
-            <div style={{ flex: 1, border: '1px solid var(--background-modifier-border)', borderRadius: '4px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', background: 'var(--background-secondary)', borderBottom: '1px solid var(--background-modifier-border)' }}>
-                    {['Params', 'Headers', 'Body', 'Extract'].map(tab => (
-                        <div key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '10px 15px', cursor: 'pointer', borderBottom: activeTab === tab ? '2px solid var(--interactive-accent)' : 'none' }}>
-                            {tab}
+            <div className="postman-tabs-header">
+                {['Params', 'Headers', 'Body', 'Extract'].map(tab => (
+                    <div key={tab} className={`postman-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
+                        {tab}
+                    </div>
+                ))}
+            </div>
+
+            <div className="postman-tab-content">
+                {activeTab === 'Params' && renderVariableList('queryParams')}
+                {activeTab === 'Headers' && renderVariableList('headers')}
+                {activeTab === 'Body' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', fontSize: '0.9em' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'none'} onChange={() => onChange({ ...request, bodyType: 'none' })} /> none</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'json'} onChange={() => onChange({ ...request, bodyType: 'json' })} /> raw (JSON)</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'form-data'} onChange={() => onChange({ ...request, bodyType: 'form-data' })} /> form-data</label>
                         </div>
-                    ))}
-                </div>
-                <div style={{ padding: '15px', flex: 1, overflowY: 'auto' }}>
-                    {activeTab === 'Params' && renderVariableList('queryParams')}
-                    {activeTab === 'Headers' && renderVariableList('headers')}
-                    {activeTab === 'Body' && (
-                        <div>
-                            <div style={{ marginBottom: '10px', display: 'flex', gap: '10px' }}>
-                                <label><input type="radio" checked={request.bodyType === 'none'} onChange={() => onChange({ ...request, bodyType: 'none' })} /> None</label>
-                                <label><input type="radio" checked={request.bodyType === 'json'} onChange={() => onChange({ ...request, bodyType: 'json' })} /> raw (JSON)</label>
-                                <label><input type="radio" checked={request.bodyType === 'form-data'} onChange={() => onChange({ ...request, bodyType: 'form-data' })} /> form-data</label>
+                        {request.bodyType === 'json' && (
+                            <textarea
+                                style={{ flex: 1, width: '100%', fontFamily: 'var(--font-monospace)', background: 'var(--background-primary)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '10px', borderRadius: '4px', resize: 'none' }}
+                                value={request.bodyRaw}
+                                onChange={(e) => onChange({ ...request, bodyRaw: e.target.value })}
+                                placeholder={"{\n  \"key\": \"value\"\n}"}
+                            />
+                        )}
+                        {request.bodyType === 'form-data' && (
+                            <div>
+                                {request.bodyFormData.map((fd: any, i: number) => (
+                                    <div key={i} className="postman-kv-row">
+                                        <input type="checkbox" checked={fd.enabled} onChange={(e) => {
+                                            const newFd = [...request.bodyFormData]; newFd[i].enabled = e.target.checked; onChange({ ...request, bodyFormData: newFd });
+                                        }} />
+                                        <select className="postman-kv-input" value={fd.type} onChange={(e) => {
+                                            const newFd = [...request.bodyFormData]; newFd[i].type = e.target.value; onChange({ ...request, bodyFormData: newFd });
+                                        }}>
+                                            <option value="text">Text</option>
+                                            <option value="file">File</option>
+                                        </select>
+                                        <input className="postman-kv-input" style={{ flex: 1 }} placeholder="Key" value={fd.key} onChange={(e) => {
+                                            const newFd = [...request.bodyFormData]; newFd[i].key = e.target.value; onChange({ ...request, bodyFormData: newFd });
+                                        }} />
+                                        {fd.type === 'file' ? (
+                                            <input className="postman-kv-input" style={{ flex: 2, padding: '4px' }} type="file" onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const newFd = [...request.bodyFormData]; newFd[i].value = (file as any).path; onChange({ ...request, bodyFormData: newFd });
+                                                }
+                                            }} />
+                                        ) : (
+                                            <input className="postman-kv-input" style={{ flex: 2 }} placeholder="Value" value={fd.value} onChange={(e) => {
+                                                const newFd = [...request.bodyFormData]; newFd[i].value = e.target.value; onChange({ ...request, bodyFormData: newFd });
+                                            }} />
+                                        )}
+                                        <button className="btn-ghost" onClick={() => {
+                                            const newFd = [...request.bodyFormData]; newFd.splice(i, 1); onChange({ ...request, bodyFormData: newFd });
+                                        }}>×</button>
+                                    </div>
+                                ))}
+                                <button className="btn-ghost" style={{ marginTop: '10px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => onChange({ ...request, bodyFormData: [...request.bodyFormData, { key: '', value: '', type: 'text', enabled: true }] })}>
+                                    + Add Item
+                                </button>
                             </div>
-                            {request.bodyType === 'json' && (
-                                <textarea style={{ width: '100%', height: '150px', fontFamily: 'monospace', background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)' }} value={request.bodyRaw} onChange={(e) => onChange({ ...request, bodyRaw: e.target.value })} />
-                            )}
-                            {request.bodyType === 'form-data' && (
-                                <div>
-                                    {request.bodyFormData.map((fd: any, i: number) => (
-                                        <div key={i} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                                            <input type="checkbox" checked={fd.enabled} onChange={(e) => {
-                                                const newFd = [...request.bodyFormData]; newFd[i].enabled = e.target.checked; onChange({ ...request, bodyFormData: newFd });
-                                            }} />
-                                            <select style={{ background: 'var(--background-modifier-form-field)' }} value={fd.type} onChange={(e) => {
-                                                const newFd = [...request.bodyFormData]; newFd[i].type = e.target.value; onChange({ ...request, bodyFormData: newFd });
-                                            }}>
-                                                <option value="text">Text</option>
-                                                <option value="file">File</option>
-                                            </select>
-                                            <input style={{ flex: 1, background: 'var(--background-modifier-form-field)' }} placeholder="Key" value={fd.key} onChange={(e) => {
-                                                const newFd = [...request.bodyFormData]; newFd[i].key = e.target.value; onChange({ ...request, bodyFormData: newFd });
-                                            }} />
-                                            {fd.type === 'file' ? (
-                                                <input style={{ flex: 2 }} type="file" onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) {
-                                                        const newFd = [...request.bodyFormData]; newFd[i].value = (file as any).path; onChange({ ...request, bodyFormData: newFd });
-                                                    }
-                                                }} />
-                                            ) : (
-                                                <input style={{ flex: 2, background: 'var(--background-modifier-form-field)' }} placeholder="Value" value={fd.value} onChange={(e) => {
-                                                    const newFd = [...request.bodyFormData]; newFd[i].value = e.target.value; onChange({ ...request, bodyFormData: newFd });
-                                                }} />
-                                            )}
-                                            <button onClick={() => {
-                                                const newFd = [...request.bodyFormData]; newFd.splice(i, 1); onChange({ ...request, bodyFormData: newFd });
-                                            }}>X</button>
-                                        </div>
-                                    ))}
-                                    <button onClick={() => onChange({ ...request, bodyFormData: [...request.bodyFormData, { key: '', value: '', type: 'text', enabled: true }] })}>+ Add Form Data</button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    {activeTab === 'Extract' && (
-                        <div>
-                            {request.extractionRules.map((rule: ExtractionRule, i: number) => (
-                                <div key={i} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                                    <input style={{ flex: 1, background: 'var(--background-modifier-form-field)' }} placeholder="Var Name" value={rule.name} onChange={(e) => {
-                                        const newRules = [...request.extractionRules]; newRules[i].name = e.target.value; onChange({ ...request, extractionRules: newRules });
-                                    }} />
-                                    <input style={{ flex: 2, background: 'var(--background-modifier-form-field)' }} placeholder="JSONPath (e.g., $.data.token)" value={rule.jsonPath} onChange={(e) => {
-                                        const newRules = [...request.extractionRules]; newRules[i].jsonPath = e.target.value; onChange({ ...request, extractionRules: newRules });
-                                    }} />
-                                    <button onClick={() => {
-                                        const newRules = [...request.extractionRules]; newRules.splice(i, 1); onChange({ ...request, extractionRules: newRules });
-                                    }}>X</button>
-                                </div>
-                            ))}
-                            <button onClick={() => onChange({ ...request, extractionRules: [...request.extractionRules, { id: Date.now().toString(), name: '', jsonPath: '$' }] })}>+ Add Rule</button>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
+                {activeTab === 'Extract' && (
+                    <div>
+                        <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginBottom: '15px' }}>Extract values from JSON responses using <a href="https://github.com/JSONPath-Plus/JSONPath" target="_blank" rel="noopener noreferrer">JSONPath</a> to save them into your active environment.</p>
+                        {request.extractionRules.map((rule: ExtractionRule, i: number) => (
+                            <div key={i} className="postman-kv-row">
+                                <input className="postman-kv-input" style={{ flex: 1 }} placeholder="Variable Name (e.g., token)" value={rule.name} onChange={(e) => {
+                                    const newRules = [...request.extractionRules]; newRules[i].name = e.target.value; onChange({ ...request, extractionRules: newRules });
+                                }} />
+                                <input className="postman-kv-input" style={{ flex: 2 }} placeholder="JSONPath (e.g., $.data.token)" value={rule.jsonPath} onChange={(e) => {
+                                    const newRules = [...request.extractionRules]; newRules[i].jsonPath = e.target.value; onChange({ ...request, extractionRules: newRules });
+                                }} />
+                                <button className="btn-ghost" onClick={() => {
+                                    const newRules = [...request.extractionRules]; newRules.splice(i, 1); onChange({ ...request, extractionRules: newRules });
+                                }}>×</button>
+                            </div>
+                        ))}
+                        <button className="btn-ghost" style={{ marginTop: '10px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => onChange({ ...request, extractionRules: [...request.extractionRules, { id: Date.now().toString(), name: '', jsonPath: '$' }] })}>
+                            + Add Rule
+                        </button>
+                    </div>
+                )}
             </div>
 
-            <div style={{ height: '250px', marginTop: '20px', border: '1px solid var(--background-modifier-border)', borderRadius: '4px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '10px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--background-modifier-border)', display: 'flex', justifyContent: 'space-between' }}>
-                    <h3 style={{ margin: 0, fontSize: '14px' }}>Response</h3>
+            <div className="postman-response-area">
+                <div className="postman-response-header">
+                    <span style={{ fontWeight: 600 }}>Response</span>
                     {response && response.response && (
-                        <div style={{ fontSize: '12px', display: 'flex', gap: '15px', color: 'var(--text-muted)' }}>
-                            <span>Status: <span style={{ color: response.response.status >= 200 && response.response.status < 300 ? 'var(--color-green)' : 'var(--color-red)' }}>{response.response.status}</span></span>
-                            <span>Time: {response.timeMs} ms</span>
+                        <div className="postman-response-status">
+                            <span>Status: <span className={`postman-badge ${response.response.status >= 200 && response.response.status < 300 ? 'success' : 'error'}`}>{response.response.status}</span></span>
+                            <span style={{ color: 'var(--text-muted)' }}>Time: {response.timeMs} ms</span>
                         </div>
                     )}
                 </div>
-                <div style={{ flex: 1, padding: '10px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '12px' }}>
-                    {!loading && !response && <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No response yet...</div>}
+                <div className="postman-response-body">
+                    {loading && <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}><span className="loading-spinner"></span> Waiting for response...</div>}
+                    {!loading && !response && <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Enter the URL and click Send to get a response</div>}
                     {!loading && response && response.error && <div style={{ color: 'var(--color-red)' }}>Error: {response.error}</div>}
                     {!loading && response && response.response && (
-                        <pre style={{ margin: 0 }}>
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                             {(() => {
                                 try {
-                                    return JSON.stringify(response.response.json, null, 2);
+                                    return JSON.stringify(response.response.json, null, 2) || response.response.text;
                                 } catch(e) {
                                     return response.response.text;
                                 }

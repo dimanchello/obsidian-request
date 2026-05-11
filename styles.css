@@ -54,10 +54,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 8px;
+    padding: 2px 4px;
     border-radius: 4px;
     cursor: pointer;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     transition: background-color 0.1s ease;
 }
 
@@ -70,10 +70,10 @@
 }
 
 .postman-method-badge {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    margin-right: 8px;
-    min-width: 40px;
+    margin-right: 6px;
+    min-width: 35px;
 }
 .method-GET { color: var(--color-green); }
 .method-POST { color: var(--color-yellow); }

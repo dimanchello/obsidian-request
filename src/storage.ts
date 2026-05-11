@@ -12,7 +12,11 @@ export const DEFAULT_COLLECTION_DATA: CollectionData = {
         bodyType: 'none',
         bodyRaw: '',
         bodyFormData: [],
-        extractionRules: []
+        bodyFormUrlEncoded: [],
+        bodyBinaryPath: '',
+        extractionRules: [],
+        auth: { type: 'none' },
+        settings: { followRedirects: true, maxRedirects: 5, verifySsl: true }
     }],
     activeEnvironmentId: 'default-env'
 };

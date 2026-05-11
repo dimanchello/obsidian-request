@@ -17,6 +17,22 @@ export interface ExtractionRule {
     targetEnvironmentId?: string;
 }
 
+export interface AuthConfig {
+    type: 'none' | 'basic' | 'bearer' | 'apikey';
+    basicUsername?: string;
+    basicPassword?: string;
+    bearerToken?: string;
+    apiKeyKey?: string;
+    apiKeyValue?: string;
+    apiKeyAddTo?: 'header' | 'query';
+}
+
+export interface RequestSettings {
+    followRedirects: boolean;
+    maxRedirects: number;
+    verifySsl: boolean;
+}
+
 export interface RequestItem {
     id: string;
     name: string;
@@ -24,10 +40,14 @@ export interface RequestItem {
     url: string;
     headers: Variable[];
     queryParams: Variable[];
-    bodyType: 'none' | 'json' | 'form-data' | 'x-www-form-urlencoded' | 'raw';
+    bodyType: 'none' | 'json' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary';
     bodyRaw: string;
     bodyFormData: { key: string; value: string; type: 'text' | 'file'; enabled: boolean }[];
+    bodyFormUrlEncoded: Variable[];
+    bodyBinaryPath: string;
     extractionRules: ExtractionRule[];
+    auth: AuthConfig;
+    settings: RequestSettings;
 }
 
 export interface CollectionData {

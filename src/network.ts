@@ -41,12 +41,33 @@ export async function executeRequest(
         headers[substituteVariables(h.key, activeEnv)] = substituteVariables(h.value, activeEnv);
     });
 
+    // Apply Auth
+    if (request.auth.type === 'basic' && request.auth.basicUsername) {
+        const user = substituteVariables(request.auth.basicUsername, activeEnv);
+        const pass = substituteVariables(request.auth.basicPassword || '', activeEnv);
+        headers['Authorization'] = 'Basic ' + Buffer.from(user + ':' + pass).toString('base64');
+    } else if (request.auth.type === 'bearer' && request.auth.bearerToken) {
+        headers['Authorization'] = 'Bearer ' + substituteVariables(request.auth.bearerToken, activeEnv);
+    } else if (request.auth.type === 'apikey' && request.auth.apiKeyKey) {
+        const key = substituteVariables(request.auth.apiKeyKey, activeEnv);
+        const val = substituteVariables(request.auth.apiKeyValue || '', activeEnv);
+        if (request.auth.apiKeyAddTo === 'header') {
+            headers[key] = val;
+        } else {
+            const urlObj = new URL(url);
+            urlObj.searchParams.append(key, val);
+            url = urlObj.toString();
+        }
+    }
+
     let body: string | ArrayBuffer | undefined = undefined;
 
-    // Use Node request if we have file uploads (because Obsidian's requestUrl doesn't easily support multipart files from local file paths)
+    // Node HTTPS/HTTP fallback conditions (e.g. reading binary files or form-data with files, or custom SSL config)
     const hasFiles = request.method !== 'GET' && request.method !== 'HEAD' && request.bodyType === 'form-data' && request.bodyFormData.some(f => f.enabled && f.type === 'file' && f.value);
+    const hasBinaryBody = request.method !== 'GET' && request.method !== 'HEAD' && request.bodyType === 'binary' && request.bodyBinaryPath;
+    const requiresNode = hasFiles || hasBinaryBody || request.settings.verifySsl === false;
 
-    if (hasFiles) {
+    if (requiresNode) {
         return await executeNodeRequest(url, request, headers, activeEnv);
     }
 
@@ -72,9 +93,17 @@ export async function executeRequest(
             }
             parts.push(`--${boundary}--\r\n`);
             body = parts.join('');
+        } else if (request.bodyType === 'x-www-form-urlencoded') {
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            const params = new URLSearchParams();
+            for (const field of request.bodyFormUrlEncoded.filter(f => f.enabled && f.key)) {
+                params.append(substituteVariables(field.key, activeEnv), substituteVariables(field.value, activeEnv));
+            }
+            body = params.toString();
         }
     }
 
+    // Determine content type of response to format XML
     const reqParams: RequestUrlParam = {
         url,
         method: request.method,
@@ -98,26 +127,47 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
     const startTime = Date.now();
     return new Promise<any>((resolve) => {
         try {
-            const form = new FormData();
+            let reqBody: any = null;
+            let reqHeaders = { ...headers };
 
-            for (const field of request.bodyFormData.filter(f => f.enabled && f.key)) {
-                const fieldName = substituteVariables(field.key, activeEnv);
-                if (field.type === 'text') {
-                    form.append(fieldName, substituteVariables(field.value, activeEnv));
-                } else if (field.type === 'file' && field.value) {
-                    const filePath = substituteVariables(field.value, activeEnv);
+            if (request.method !== 'GET' && request.method !== 'HEAD') {
+                if (request.bodyType === 'form-data') {
+                    const form = new FormData();
+                    for (const field of request.bodyFormData.filter(f => f.enabled && f.key)) {
+                        const fieldName = substituteVariables(field.key, activeEnv);
+                        if (field.type === 'text') {
+                            form.append(fieldName, substituteVariables(field.value, activeEnv));
+                        } else if (field.type === 'file' && field.value) {
+                            const filePath = substituteVariables(field.value, activeEnv);
+                            if (fs.existsSync(filePath)) {
+                                form.append(fieldName, fs.createReadStream(filePath));
+                            } else {
+                                throw new Error(`File not found: ${filePath}`);
+                            }
+                        }
+                    }
+                    reqBody = form;
+                    reqHeaders = { ...reqHeaders, ...form.getHeaders() };
+                } else if (request.bodyType === 'binary') {
+                    const filePath = substituteVariables(request.bodyBinaryPath, activeEnv);
                     if (fs.existsSync(filePath)) {
-                        form.append(fieldName, fs.createReadStream(filePath));
+                        reqBody = fs.createReadStream(filePath);
+                        const stats = fs.statSync(filePath);
+                        reqHeaders['Content-Length'] = stats.size.toString();
+                        if (!reqHeaders['Content-Type']) {
+                            reqHeaders['Content-Type'] = 'application/octet-stream';
+                        }
                     } else {
-                        throw new Error(`File not found: ${filePath}`);
+                        throw new Error(`Binary file not found: ${filePath}`);
                     }
                 }
             }
 
             const urlObj = new URL(url);
-            const reqOptions = {
+            const reqOptions: https.RequestOptions = {
                 method: request.method,
-                headers: { ...headers, ...form.getHeaders() }
+                headers: reqHeaders,
+                rejectUnauthorized: request.settings.verifySsl !== false
             };
 
             const client = urlObj.protocol === 'https:' ? https : http;
@@ -149,7 +199,16 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
                 resolve({ error: e.message, timeMs: Date.now() - startTime });
             });
 
-            form.pipe(req);
+            if (reqBody) {
+                if (reqBody.pipe) {
+                    reqBody.pipe(req);
+                } else {
+                    req.write(reqBody);
+                    req.end();
+                }
+            } else {
+                req.end();
+            }
         } catch(e: any) {
             resolve({ error: e.message, timeMs: Date.now() - startTime });
         }

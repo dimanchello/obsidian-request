@@ -77,7 +77,11 @@ function extractRequests(items: PostmanItem[]): RequestItem[] {
                 bodyType,
                 bodyRaw,
                 bodyFormData,
-                extractionRules: [] // Postman tests aren't easily converted to simple JSONPath rules
+                bodyFormUrlEncoded: [],
+                bodyBinaryPath: '',
+                extractionRules: [], // Postman tests aren't easily converted to simple JSONPath rules
+                auth: { type: 'none' },
+                settings: { followRedirects: true, maxRedirects: 5, verifySsl: true }
             });
         }
     }

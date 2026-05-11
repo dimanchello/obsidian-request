@@ -3,6 +3,7 @@ import { JSONPath } from 'jsonpath-plus';
 import { CollectionData, RequestItem, Environment, ExtractionRule, Variable } from '../types';
 import { executeRequest } from '../network';
 import { importPostmanCollection, exportPostmanCollection } from '../postmanFormat';
+import { Notice } from 'obsidian';
 
 interface AppProps {
     data: CollectionData;
@@ -54,19 +55,24 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target?.result as string;
+            reader.onload = (event) => {
+                const content = event.target?.result as string;
                 if (content) {
                     try {
                         const importedRequests = importPostmanCollection(content);
                         if (importedRequests.length > 0) {
                             handleSave({ ...collectionData, requests: [...collectionData.requests, ...importedRequests] });
-                            alert(`Imported ${importedRequests.length} requests!`);
+                            new Notice(`Successfully imported ${importedRequests.length} requests!`);
+                        } else {
+                            new Notice("No requests found in the imported file.");
                         }
                     } catch (err: any) {
-                        alert(err.message);
+                        new Notice(`Import failed: ${err.message}`);
                     }
                 }
+            };
+            reader.onerror = () => {
+                new Notice("Failed to read the file.");
             };
             reader.readAsText(file);
         };
@@ -85,8 +91,9 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            new Notice("Collection exported successfully!");
         } catch(e) {
-            alert("Export failed");
+            new Notice("Export failed!");
         }
     };
 
@@ -367,7 +374,45 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     const updateVariableList = (listKey: 'queryParams' | 'headers', index: number, field: string, value: any) => {
         const newList = [...request[listKey]];
         newList[index] = { ...newList[index], [field]: value };
-        onChange({ ...request, [listKey]: newList });
+
+        const updatedReq = { ...request, [listKey]: newList };
+
+        // Sync URL if Query Params changed
+        if (listKey === 'queryParams') {
+            try {
+                // We only do a basic reconstruction if it's a valid URL or just a path
+                let baseUrl = updatedReq.url.split('?')[0];
+                const activeParams = newList.filter((p: any) => p.enabled && p.key);
+                if (activeParams.length > 0) {
+                    const qs = activeParams.map((p: any) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+                    updatedReq.url = `${baseUrl}?${qs}`;
+                } else {
+                    updatedReq.url = baseUrl;
+                }
+            } catch (e) {}
+        }
+
+        onChange(updatedReq);
+    };
+
+    const handleUrlChange = (newUrl: string) => {
+        let updatedReq = { ...request, url: newUrl };
+        try {
+            // Very basic URL parser that splits by ? to extract query params
+            const parts = newUrl.split('?');
+            if (parts.length > 1) {
+                const qs = parts[1];
+                const pairs = qs.split('&');
+                const newParams: Variable[] = pairs.map(pair => {
+                    const [k, v] = pair.split('=');
+                    return { key: decodeURIComponent(k || ''), value: decodeURIComponent(v || ''), enabled: true };
+                }).filter(p => p.key);
+                updatedReq.queryParams = newParams;
+            } else {
+                updatedReq.queryParams = [];
+            }
+        } catch (e) {}
+        onChange(updatedReq);
     };
 
     const renderVariableList = (listKey: 'queryParams' | 'headers') => (
@@ -420,7 +465,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                     </select>
                     <HighlightedInput
                         value={request.url}
-                        onChange={(val: string) => onChange({ ...request, url: val })}
+                        onChange={handleUrlChange}
                         placeholder="Enter request URL"
                         collectionData={collectionData}
                     />
@@ -431,7 +476,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
             </div>
 
             <div className="postman-tabs-header">
-                {['Params', 'Headers', 'Body', 'Extract'].map(tab => (
+                {['Params', 'Auth', 'Headers', 'Body', 'Extract', 'Settings'].map(tab => (
                     <div key={tab} className={`postman-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
                         {tab}
                     </div>
@@ -441,12 +486,68 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
             <div className="postman-tab-content">
                 {activeTab === 'Params' && renderVariableList('queryParams')}
                 {activeTab === 'Headers' && renderVariableList('headers')}
+                {activeTab === 'Auth' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <label style={{ fontWeight: 'bold' }}>Auth Type:</label>
+                            <select
+                                className="postman-kv-input"
+                                value={request.auth.type}
+                                onChange={(e) => onChange({ ...request, auth: { ...request.auth, type: e.target.value } })}
+                            >
+                                <option value="none">No Auth</option>
+                                <option value="basic">Basic Auth</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="apikey">API Key</option>
+                            </select>
+                        </div>
+                        {request.auth.type === 'basic' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
+                                <HighlightedInput className="postman-kv-input" placeholder="Username" value={request.auth.basicUsername || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicUsername: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Password" value={request.auth.basicPassword || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicPassword: val } })} collectionData={collectionData} />
+                            </div>
+                        )}
+                        {request.auth.type === 'bearer' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
+                                <HighlightedInput className="postman-kv-input" placeholder="Token" value={request.auth.bearerToken || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, bearerToken: val } })} collectionData={collectionData} />
+                            </div>
+                        )}
+                        {request.auth.type === 'apikey' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
+                                <HighlightedInput className="postman-kv-input" placeholder="Key" value={request.auth.apiKeyKey || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyKey: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Value" value={request.auth.apiKeyValue || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyValue: val } })} collectionData={collectionData} />
+                                <select className="postman-kv-input" value={request.auth.apiKeyAddTo || 'header'} onChange={(e) => onChange({ ...request, auth: { ...request.auth, apiKeyAddTo: e.target.value } })}>
+                                    <option value="header">Add to Header</option>
+                                    <option value="query">Add to Query Params</option>
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {activeTab === 'Settings' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <input type="checkbox" checked={request.settings.followRedirects} onChange={(e) => onChange({ ...request, settings: { ...request.settings, followRedirects: e.target.checked } })} />
+                            Follow Redirects
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <label>Max Redirects:</label>
+                            <input type="number" className="postman-kv-input" style={{ width: '80px' }} value={request.settings.maxRedirects} onChange={(e) => onChange({ ...request, settings: { ...request.settings, maxRedirects: parseInt(e.target.value) || 5 } })} />
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <input type="checkbox" checked={request.settings.verifySsl} onChange={(e) => onChange({ ...request, settings: { ...request.settings, verifySsl: e.target.checked } })} />
+                            Verify SSL Certificates
+                        </label>
+                    </div>
+                )}
                 {activeTab === 'Body' && (
                     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', fontSize: '0.9em' }}>
+                        <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', fontSize: '0.9em', flexWrap: 'wrap' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'none'} onChange={() => onChange({ ...request, bodyType: 'none' })} /> none</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'json'} onChange={() => onChange({ ...request, bodyType: 'json' })} /> raw (JSON)</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'form-data'} onChange={() => onChange({ ...request, bodyType: 'form-data' })} /> form-data</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'x-www-form-urlencoded'} onChange={() => onChange({ ...request, bodyType: 'x-www-form-urlencoded' })} /> x-www-form-urlencoded</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'binary'} onChange={() => onChange({ ...request, bodyType: 'binary' })} /> binary</label>
                         </div>
                         {request.bodyType === 'json' && (
                             <textarea
@@ -494,6 +595,18 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                 </button>
                             </div>
                         )}
+                            {request.bodyType === 'x-www-form-urlencoded' && renderVariableList('bodyFormUrlEncoded')}
+                            {request.bodyType === 'binary' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', border: '1px dashed var(--background-modifier-border)', borderRadius: '4px' }}>
+                                    <input type="file" onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            onChange({ ...request, bodyBinaryPath: (file as any).path });
+                                        }
+                                    }} />
+                                    <span style={{ color: 'var(--text-muted)' }}>{request.bodyBinaryPath || 'No file selected'}</span>
+                                </div>
+                            )}
                     </div>
                 )}
                 {activeTab === 'Extract' && (
@@ -543,7 +656,25 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                         return response.response.text;
                                     }
                                 }
-                                return response.response.text;
+                                const text = response.response.text;
+                                if (text && (text.trim().startsWith('<') && text.includes('xml'))) {
+                                    // Basic XML formatter fallback (since we don't have a library built in for this UI)
+                                    let formatted = '';
+                                    let pad = 0;
+                                    text.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
+                                        if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
+                                            formatted += '  '.repeat(pad) + node + '\n';
+                                            pad += 1;
+                                        } else if (node.match(/^<\/\w/)) {
+                                            if (pad !== 0) pad -= 1;
+                                            formatted += '  '.repeat(pad) + node + '\n';
+                                        } else {
+                                            formatted += '  '.repeat(pad) + node + '\n';
+                                        }
+                                    });
+                                    return formatted || text;
+                                }
+                                return text;
                             })()}
                         </pre>
                     )}

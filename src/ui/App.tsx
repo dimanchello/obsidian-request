@@ -17,6 +17,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
     );
     const [showEnvManager, setShowEnvManager] = React.useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+    const [searchQuery, setSearchQuery] = React.useState("");
 
     React.useEffect(() => {
         setCollectionData(data);
@@ -28,6 +29,11 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
     };
 
     const activeReq = collectionData.requests.find(r => r.id === activeReqId);
+
+    const filteredRequests = collectionData.requests.filter(r =>
+        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.url.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const addNewRequest = () => {
         const newReq: RequestItem = {
@@ -118,8 +124,18 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </select>
                 </div>
 
+                <div style={{ padding: '0 10px 10px 10px' }}>
+                    <input
+                        type="text"
+                        placeholder="Search requests..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{ width: '100%', background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '5px', borderRadius: '4px', fontSize: '12px' }}
+                    />
+                </div>
+
                 <div className="postman-request-list">
-                    {collectionData.requests.map((req: RequestItem) => (
+                    {filteredRequests.map((req: RequestItem) => (
                         <div key={req.id}
                              onClick={() => { setActiveReqId(req.id); if (window.innerWidth <= 768) setMobileSidebarOpen(false); }}
                              className={`postman-request-item ${activeReqId === req.id ? 'active' : ''}`}>

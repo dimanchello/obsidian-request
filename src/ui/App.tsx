@@ -58,36 +58,28 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         if (window.innerWidth <= 768) setMobileSidebarOpen(false);
     };
 
-    const handleImport = () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (e: any) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const content = event.target?.result as string;
-                if (content) {
-                    try {
-                        const importedRequests = importPostmanCollection(content);
-                        if (importedRequests.length > 0) {
-                            handleSave({ ...collectionData, requests: [...collectionData.requests, ...importedRequests] });
-                            new Notice(`Successfully imported ${importedRequests.length} requests!`);
-                        } else {
-                            new Notice("No requests found in the imported file.");
-                        }
-                    } catch (err: any) {
-                        new Notice(`Import failed: ${err.message}`);
-                    }
+    const handleImport = async () => {
+        try {
+            const electron = (window as any).require('electron');
+            const fs = (window as any).require('fs');
+            const result = await electron.remote.dialog.showOpenDialog({
+                properties: ['openFile'],
+                filters: [{ name: 'JSON', extensions: ['json'] }]
+            });
+
+            if (!result.canceled && result.filePaths.length > 0) {
+                const content = fs.readFileSync(result.filePaths[0], 'utf8');
+                const importedRequests = importPostmanCollection(content);
+                if (importedRequests.length > 0) {
+                    handleSave({ ...collectionData, requests: [...collectionData.requests, ...importedRequests] });
+                    new Notice(`Successfully imported ${importedRequests.length} requests!`);
+                } else {
+                    new Notice("No requests found in the imported file.");
                 }
-            };
-            reader.onerror = () => {
-                new Notice("Failed to read the file.");
-            };
-            reader.readAsText(file);
-        };
-        input.click();
+            }
+        } catch (err: any) {
+            new Notice(`Import failed: ${err.message}`);
+        }
     };
 
     const handleExport = () => {
@@ -129,7 +121,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </select>
                 </div>
 
-                <div style={{ padding: '0 10px 10px 10px' }}>
+                <div style={{ padding: '10px' }}>
                     <input
                         type="text"
                         placeholder="Search requests..."
@@ -150,9 +142,11 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                             </div>
                             <button className="btn-ghost" onClick={(e) => {
                                 e.stopPropagation();
-                                const newReqs = collectionData.requests.filter(r => r.id !== req.id);
-                                handleSave({ ...collectionData, requests: newReqs });
-                                if (activeReqId === req.id) setActiveReqId(newReqs.length > 0 ? newReqs[0].id : null);
+                                if (confirm(`Are you sure you want to delete "${req.name}"?`)) {
+                                    const newReqs = collectionData.requests.filter(r => r.id !== req.id);
+                                    handleSave({ ...collectionData, requests: newReqs });
+                                    if (activeReqId === req.id) setActiveReqId(newReqs.length > 0 ? newReqs[0].id : null);
+                                }
                             }}>×</button>
                         </div>
                     ))}
@@ -366,6 +360,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     const [activeTab, setActiveTab] = React.useState('Params');
     const [response, setResponse] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(false);
+    const [responseMode, setResponseMode] = React.useState<'raw' | 'preview'>('raw');
 
     const handleSend = async () => {
         setLoading(true);
@@ -497,7 +492,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
             </div>
 
             <div className="postman-tabs-header">
-                {['Params', 'Auth', 'Headers', 'Body', 'Extract', 'Settings'].map(tab => (
+                {['Params', 'Auth', 'Headers', 'Body', 'Pre-req', 'Extract', 'Settings'].map(tab => (
                     <div key={tab} className={`postman-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
                         {tab}
                     </div>
@@ -651,11 +646,22 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                         </button>
                     </div>
                 )}
+                {activeTab === 'Pre-req' && (
+                    <PreRequestsTab request={request} collectionData={collectionData} onChange={onChange} />
+                )}
             </div>
 
             <div className="postman-response-area">
                 <div className="postman-response-header">
-                    <span style={{ fontWeight: 600 }}>Response</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <span style={{ fontWeight: 600 }}>Response</span>
+                        {response && response.response && (
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                                <button className={`btn-ghost ${responseMode === 'raw' ? 'active' : ''}`} style={{ fontSize: '10px', background: responseMode === 'raw' ? 'var(--background-modifier-active-hover)' : 'transparent' }} onClick={() => setResponseMode('raw')}>Raw</button>
+                                <button className={`btn-ghost ${responseMode === 'preview' ? 'active' : ''}`} style={{ fontSize: '10px', background: responseMode === 'preview' ? 'var(--background-modifier-active-hover)' : 'transparent' }} onClick={() => setResponseMode('preview')}>Preview</button>
+                            </div>
+                        )}
+                    </div>
                     {response && response.response && (
                         <div className="postman-response-status">
                             <span>Status: <span className={`postman-badge ${response.response.status >= 200 && response.response.status < 300 ? 'success' : 'error'}`}>{response.response.status}</span></span>
@@ -663,41 +669,63 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                         </div>
                     )}
                 </div>
-                <div className="postman-response-body">
-                    {loading && <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}><span className="loading-spinner"></span> Waiting for response...</div>}
+                <div className="postman-response-body" style={{ padding: responseMode === 'preview' ? '0' : '15px 20px' }}>
+                    {loading && <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px', padding: '15px 20px' }}><span className="loading-spinner"></span> Waiting for response...</div>}
                     {!loading && !response && <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Enter the URL and click Send to get a response</div>}
-                    {!loading && response && response.error && <div style={{ color: 'var(--color-red)' }}>Error: {response.error}</div>}
+                    {!loading && response && response.error && <div style={{ color: 'var(--color-red)', padding: '15px 20px' }}>Error: {response.error}</div>}
                     {!loading && response && response.response && (
-                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                            {(() => {
-                                if (response.response.json) {
-                                    try {
-                                        return JSON.stringify(response.response.json, null, 2);
-                                    } catch(e) {
-                                        return response.response.text;
-                                    }
-                                }
-                                const text = response.response.text;
-                                if (text && (text.trim().startsWith('<') && text.includes('xml'))) {
-                                    // Basic XML formatter fallback (since we don't have a library built in for this UI)
-                                    let formatted = '';
-                                    let pad = 0;
-                                    text.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
-                                        if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
-                                            formatted += '  '.repeat(pad) + node + '\n';
-                                            pad += 1;
-                                        } else if (node.match(/^<\/\w/)) {
-                                            if (pad !== 0) pad -= 1;
-                                            formatted += '  '.repeat(pad) + node + '\n';
-                                        } else {
-                                            formatted += '  '.repeat(pad) + node + '\n';
+                        <>
+                            {responseMode === 'raw' && (
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                    {(() => {
+                                        if (response.response.isBinary) {
+                                            return `<Binary data: ${response.response.contentType}>`;
                                         }
-                                    });
-                                    return formatted || text;
-                                }
-                                return text;
-                            })()}
-                        </pre>
+                                        if (response.response.json) {
+                                            try {
+                                                return JSON.stringify(response.response.json, null, 2);
+                                            } catch(e) {
+                                                return response.response.text;
+                                            }
+                                        }
+                                        const text = response.response.text;
+                                        if (text && (text.trim().startsWith('<') && text.includes('xml'))) {
+                                            let formatted = '';
+                                            let pad = 0;
+                                            text.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
+                                                if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
+                                                    formatted += '  '.repeat(pad) + node + '\n';
+                                                    pad += 1;
+                                                } else if (node.match(/^<\/\w/)) {
+                                                    if (pad !== 0) pad -= 1;
+                                                    formatted += '  '.repeat(pad) + node + '\n';
+                                                } else {
+                                                    formatted += '  '.repeat(pad) + node + '\n';
+                                                }
+                                            });
+                                            return formatted || text;
+                                        }
+                                        return text;
+                                    })()}
+                                </pre>
+                            )}
+                            {responseMode === 'preview' && (
+                                <div style={{ width: '100%', height: '100%', background: 'white' }}>
+                                    {response.response.contentType?.includes('image') ? (
+                                        <img
+                                            src={URL.createObjectURL(new Blob([response.response.arrayBuffer], { type: response.response.contentType }))}
+                                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                        />
+                                    ) : (
+                                        <iframe
+                                            srcDoc={response.response.text}
+                                            style={{ width: '100%', height: '100%', border: 'none', background: 'white' }}
+                                            sandbox="allow-scripts"
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

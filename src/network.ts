@@ -103,7 +103,6 @@ export async function executeRequest(
         }
     }
 
-    // Determine content type of response to format XML
     const reqParams: RequestUrlParam = {
         url,
         method: request.method,
@@ -114,9 +113,24 @@ export async function executeRequest(
 
     const startTime = Date.now();
     try {
-        const response = await requestUrl(reqParams);
+        const obsidianResponse = await requestUrl(reqParams);
         const timeMs = Date.now() - startTime;
-        return { response, timeMs };
+
+        const contentType = obsidianResponse.headers['content-type']?.toString() || '';
+        const isBinary = !contentType.includes('text') && !contentType.includes('json') && !contentType.includes('xml');
+
+        return {
+            response: {
+                status: obsidianResponse.status,
+                headers: obsidianResponse.headers,
+                contentType,
+                text: isBinary ? '' : obsidianResponse.text,
+                json: obsidianResponse.json,
+                arrayBuffer: obsidianResponse.arrayBuffer,
+                isBinary
+            },
+            timeMs
+        };
     } catch (err: any) {
         const timeMs = Date.now() - startTime;
         return { error: err.message || "Failed to fetch", timeMs };
@@ -173,22 +187,35 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
             const client = urlObj.protocol === 'https:' ? https : http;
 
             const req = client.request(url, reqOptions, (res) => {
-                let data = '';
+                const chunks: Buffer[] = [];
                 res.on('data', (chunk) => {
-                    data += chunk;
+                    chunks.push(Buffer.from(chunk));
                 });
                 res.on('end', () => {
                     const timeMs = Date.now() - startTime;
+                    const buffer = Buffer.concat(chunks);
+                    const contentType = res.headers['content-type'] || '';
+
+                    let text = '';
                     let json = null;
-                    try {
-                        json = JSON.parse(data);
-                    } catch(e) {}
+                    const isBinary = !contentType.includes('text') && !contentType.includes('json') && !contentType.includes('xml');
+
+                    if (!isBinary) {
+                        text = buffer.toString('utf8');
+                        if (contentType.includes('json')) {
+                            try { json = JSON.parse(text); } catch(e) {}
+                        }
+                    }
 
                     resolve({
                         response: {
                             status: res.statusCode || 200,
-                            text: data,
-                            json
+                            headers: res.headers,
+                            contentType,
+                            text,
+                            json,
+                            arrayBuffer: buffer.buffer,
+                            isBinary
                         },
                         timeMs
                     });

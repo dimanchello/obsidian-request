@@ -46,7 +46,12 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
             bodyType: 'none',
             bodyRaw: '',
             bodyFormData: [],
-            extractionRules: []
+            bodyFormUrlEncoded: [],
+            bodyBinaryPath: '',
+            extractionRules: [],
+            auth: { type: 'none' },
+            settings: { followRedirects: true, maxRedirects: 5, verifySsl: true },
+            dependencies: []
         };
         handleSave({ ...collectionData, requests: [...collectionData.requests, newReq] });
         setActiveReqId(newReq.id);
@@ -387,7 +392,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
         setLoading(false);
     };
 
-    const updateVariableList = (listKey: 'queryParams' | 'headers', index: number, field: string, value: any) => {
+    const updateVariableList = (listKey: 'queryParams' | 'headers' | 'bodyFormUrlEncoded', index: number, field: string, value: any) => {
         const newList = [...request[listKey]];
         newList[index] = { ...newList[index], [field]: value };
 
@@ -431,7 +436,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
         onChange(updatedReq);
     };
 
-    const renderVariableList = (listKey: 'queryParams' | 'headers') => (
+    const renderVariableList = (listKey: 'queryParams' | 'headers' | 'bodyFormUrlEncoded') => (
         <div>
             {request[listKey].map((item: Variable, i: number) => (
                 <div key={i} className="postman-kv-row">
@@ -508,7 +513,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                             <label style={{ fontWeight: 'bold' }}>Auth Type:</label>
                             <select
                                 className="postman-kv-input"
-                                value={request.auth.type}
+                                value={request.auth?.type || 'none'}
                                 onChange={(e) => onChange({ ...request, auth: { ...request.auth, type: e.target.value } })}
                             >
                                 <option value="none">No Auth</option>
@@ -517,22 +522,22 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                 <option value="apikey">API Key</option>
                             </select>
                         </div>
-                        {request.auth.type === 'basic' && (
+                        {request.auth?.type === 'basic' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-                                <HighlightedInput className="postman-kv-input" placeholder="Username" value={request.auth.basicUsername || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicUsername: val } })} collectionData={collectionData} />
-                                <HighlightedInput className="postman-kv-input" placeholder="Password" value={request.auth.basicPassword || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicPassword: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Username" value={request.auth?.basicUsername || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicUsername: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Password" value={request.auth?.basicPassword || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicPassword: val } })} collectionData={collectionData} />
                             </div>
                         )}
-                        {request.auth.type === 'bearer' && (
+                        {request.auth?.type === 'bearer' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-                                <HighlightedInput className="postman-kv-input" placeholder="Token" value={request.auth.bearerToken || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, bearerToken: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Token" value={request.auth?.bearerToken || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, bearerToken: val } })} collectionData={collectionData} />
                             </div>
                         )}
-                        {request.auth.type === 'apikey' && (
+                        {request.auth?.type === 'apikey' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-                                <HighlightedInput className="postman-kv-input" placeholder="Key" value={request.auth.apiKeyKey || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyKey: val } })} collectionData={collectionData} />
-                                <HighlightedInput className="postman-kv-input" placeholder="Value" value={request.auth.apiKeyValue || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyValue: val } })} collectionData={collectionData} />
-                                <select className="postman-kv-input" value={request.auth.apiKeyAddTo || 'header'} onChange={(e) => onChange({ ...request, auth: { ...request.auth, apiKeyAddTo: e.target.value } })}>
+                                <HighlightedInput className="postman-kv-input" placeholder="Key" value={request.auth?.apiKeyKey || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyKey: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Value" value={request.auth?.apiKeyValue || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyValue: val } })} collectionData={collectionData} />
+                                <select className="postman-kv-input" value={request.auth?.apiKeyAddTo || 'header'} onChange={(e) => onChange({ ...request, auth: { ...request.auth, apiKeyAddTo: e.target.value } })}>
                                     <option value="header">Add to Header</option>
                                     <option value="query">Add to Query Params</option>
                                 </select>
@@ -543,15 +548,15 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                 {activeTab === 'Settings' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <input type="checkbox" checked={request.settings.followRedirects} onChange={(e) => onChange({ ...request, settings: { ...request.settings, followRedirects: e.target.checked } })} />
+                            <input type="checkbox" checked={request.settings?.followRedirects ?? true} onChange={(e) => onChange({ ...request, settings: { ...request.settings, followRedirects: e.target.checked } })} />
                             Follow Redirects
                         </label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <label>Max Redirects:</label>
-                            <input type="number" className="postman-kv-input" style={{ width: '80px' }} value={request.settings.maxRedirects} onChange={(e) => onChange({ ...request, settings: { ...request.settings, maxRedirects: parseInt(e.target.value) || 5 } })} />
+                            <input type="number" className="postman-kv-input" style={{ width: '80px' }} value={request.settings?.maxRedirects ?? 5} onChange={(e) => onChange({ ...request, settings: { ...request.settings, maxRedirects: parseInt(e.target.value) || 5 } })} />
                         </div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <input type="checkbox" checked={request.settings.verifySsl} onChange={(e) => onChange({ ...request, settings: { ...request.settings, verifySsl: e.target.checked } })} />
+                            <input type="checkbox" checked={request.settings?.verifySsl ?? true} onChange={(e) => onChange({ ...request, settings: { ...request.settings, verifySsl: e.target.checked } })} />
                             Verify SSL Certificates
                         </label>
                     </div>

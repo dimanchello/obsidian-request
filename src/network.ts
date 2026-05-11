@@ -3,7 +3,7 @@ import { CollectionData, RequestItem, Environment } from './types';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as https from 'https';
-import FormData from 'form-data';
+const FormData = require('form-data');
 
 export function substituteVariables(text: string, activeEnvironment?: Environment): string {
     if (!text) return text;

@@ -48,6 +48,7 @@ export interface RequestItem {
     extractionRules: ExtractionRule[];
     auth: AuthConfig;
     settings: RequestSettings;
+    dependencies?: string[];
 }
 
 export interface CollectionData {

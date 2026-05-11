@@ -372,6 +372,29 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     const [response, setResponse] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(false);
     const [responseMode, setResponseMode] = React.useState<'raw' | 'preview'>('raw');
+    const [responseHeight, setResponseHeight] = React.useState(35); // Percentage
+    const [responseSubTab, setResponseSubTab] = React.useState<'Body' | 'Headers' | 'Cookies'>('Body');
+
+    const startResizing = React.useCallback((e: any) => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startHeight = responseHeight;
+        const containerHeight = document.querySelector('.postman-main')?.clientHeight || 1000;
+
+        const doDrag = (dragEvent: any) => {
+            const deltaY = startY - dragEvent.clientY;
+            const deltaPercent = (deltaY / containerHeight) * 100;
+            setResponseHeight(Math.min(Math.max(startHeight + deltaPercent, 10), 85));
+        };
+
+        const stopDrag = () => {
+            document.removeEventListener('mousemove', doDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        };
+
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('mouseup', stopDrag);
+    }, [responseHeight]);
 
     const handleSend = async () => {
         setLoading(true);
@@ -579,19 +602,19 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                         </div>
                         {request.auth?.type === 'basic' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-                                <HighlightedInput className="postman-kv-input" placeholder="Username" value={request.auth?.basicUsername || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicUsername: val } })} collectionData={collectionData} />
-                                <HighlightedInput className="postman-kv-input" placeholder="Password" value={request.auth?.basicPassword || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicPassword: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Username (e.g. {{username}})" value={request.auth?.basicUsername || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicUsername: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Password (e.g. {{password}})" value={request.auth?.basicPassword || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, basicPassword: val } })} collectionData={collectionData} />
                             </div>
                         )}
                         {request.auth?.type === 'bearer' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-                                <HighlightedInput className="postman-kv-input" placeholder="Token" value={request.auth?.bearerToken || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, bearerToken: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Token (e.g. {{bearerToken}})" value={request.auth?.bearerToken || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, bearerToken: val } })} collectionData={collectionData} />
                             </div>
                         )}
                         {request.auth?.type === 'apikey' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
                                 <HighlightedInput className="postman-kv-input" placeholder="Key" value={request.auth?.apiKeyKey || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyKey: val } })} collectionData={collectionData} />
-                                <HighlightedInput className="postman-kv-input" placeholder="Value" value={request.auth?.apiKeyValue || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyValue: val } })} collectionData={collectionData} />
+                                <HighlightedInput className="postman-kv-input" placeholder="Value (e.g. {{apiKey}})" value={request.auth?.apiKeyValue || ''} onChange={(val: string) => onChange({ ...request, auth: { ...request.auth, apiKeyValue: val } })} collectionData={collectionData} />
                                 <select className="postman-kv-input" value={request.auth?.apiKeyAddTo || 'header'} onChange={(e) => onChange({ ...request, auth: { ...request.auth, apiKeyAddTo: e.target.value } })}>
                                     <option value="header">Add to Header</option>
                                     <option value="query">Add to Query Params</option>
@@ -711,14 +734,42 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                 )}
             </div>
 
-            <div className="postman-response-area">
+            <div className="postman-resizer" onMouseDown={startResizing} title="Drag to resize response view"></div>
+
+            <div className="postman-response-area" style={{ height: `${responseHeight}%` }}>
                 <div className="postman-response-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                        <span style={{ fontWeight: 600 }}>Response</span>
-                        {response && response.response && (
+                        <div style={{ display: 'flex', gap: '10px', fontWeight: 600 }}>
+                            {['Body', 'Headers', 'Cookies'].map(subTab => (
+                                <span
+                                    key={subTab}
+                                    style={{
+                                        cursor: 'pointer',
+                                        color: responseSubTab === subTab ? 'var(--text-normal)' : 'var(--text-muted)',
+                                        borderBottom: responseSubTab === subTab ? '2px solid var(--interactive-accent)' : 'none'
+                                    }}
+                                    onClick={() => setResponseSubTab(subTab as any)}
+                                >
+                                    {subTab}
+                                </span>
+                            ))}
+                        </div>
+                        {response && response.response && responseSubTab === 'Body' && (
                             <div style={{ display: 'flex', gap: '5px' }}>
                                 <button className={`btn-ghost ${responseMode === 'raw' ? 'active' : ''}`} style={{ fontSize: '10px', background: responseMode === 'raw' ? 'var(--background-modifier-active-hover)' : 'transparent' }} onClick={() => setResponseMode('raw')}>Raw</button>
                                 <button className={`btn-ghost ${responseMode === 'preview' ? 'active' : ''}`} style={{ fontSize: '10px', background: responseMode === 'preview' ? 'var(--background-modifier-active-hover)' : 'transparent' }} onClick={() => setResponseMode('preview')}>Preview</button>
+                                <button
+                                    className="btn-ghost"
+                                    style={{ fontSize: '10px', border: '1px solid var(--background-modifier-border)' }}
+                                    onClick={() => {
+                                        if (response && response.response) {
+                                            const text = response.response.json ? JSON.stringify(response.response.json, null, 2) : response.response.text;
+                                            navigator.clipboard.writeText(text).then(() => {
+                                                new Notice("Copied response to clipboard!");
+                                            });
+                                        }
+                                    }}
+                                >Copy</button>
                             </div>
                         )}
                     </div>
@@ -729,13 +780,13 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                         </div>
                     )}
                 </div>
-                <div className="postman-response-body" style={{ padding: responseMode === 'preview' ? '0' : '15px 20px' }}>
+                <div className="postman-response-body" style={{ padding: responseMode === 'preview' && responseSubTab === 'Body' ? '0' : '15px 20px' }}>
                     {loading && <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px', padding: '15px 20px' }}><span className="loading-spinner"></span> Waiting for response...</div>}
                     {!loading && !response && <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Enter the URL and click Send to get a response</div>}
                     {!loading && response && response.error && <div style={{ color: 'var(--color-red)', padding: '15px 20px' }}>Error: {response.error}</div>}
                     {!loading && response && response.response && (
                         <>
-                            {responseMode === 'raw' && (
+                            {responseSubTab === 'Body' && responseMode === 'raw' && (
                                 <pre>
                                     {(() => {
                                         if (response.response.isBinary) {
@@ -790,7 +841,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                     })()}
                                 </pre>
                             )}
-                            {responseMode === 'preview' && (
+                            {responseSubTab === 'Body' && responseMode === 'preview' && (
                                 <div style={{ width: '100%', height: '100%', background: 'white' }}>
                                     {response.response.contentType?.includes('image') ? (
                                         <img
@@ -804,6 +855,41 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                             sandbox="allow-scripts"
                                         />
                                     )}
+                                </div>
+                            )}
+
+                            {responseSubTab === 'Headers' && (
+                                <div>
+                                    {Object.entries(response.response.headers || {}).map(([key, val]: [string, any], i) => (
+                                        <div key={i} className="postman-kv-row">
+                                            <input className="postman-kv-input" style={{ flex: 1, fontWeight: 'bold' }} readOnly value={key} />
+                                            <input className="postman-kv-input" style={{ flex: 2 }} readOnly value={val} />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {responseSubTab === 'Cookies' && (
+                                <div>
+                                    {(() => {
+                                        const cookies: string[] = Array.isArray(response.response.headers['set-cookie'])
+                                            ? response.response.headers['set-cookie']
+                                            : response.response.headers['set-cookie'] ? [response.response.headers['set-cookie']] : [];
+
+                                        if (cookies.length === 0) return <div style={{ color: 'var(--text-muted)' }}>No cookies returned.</div>;
+
+                                        return cookies.map((cookieStr: string, i: number) => {
+                                            const parts = cookieStr.split(';');
+                                            const [nameVal] = parts;
+                                            const [name, val] = nameVal.split('=');
+                                            return (
+                                                <div key={i} className="postman-kv-row" style={{ marginBottom: '10px' }}>
+                                                    <input className="postman-kv-input" style={{ flex: 1, fontWeight: 'bold' }} readOnly value={name} />
+                                                    <input className="postman-kv-input" style={{ flex: 2 }} readOnly value={val || ''} />
+                                                </div>
+                                            );
+                                        });
+                                    })()}
                                 </div>
                             )}
                         </>

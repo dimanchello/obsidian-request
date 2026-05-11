@@ -241,9 +241,8 @@
 
 /* Response Area */
 .postman-response-area {
-    height: 35%;
-    min-height: 200px;
-    border-top: 1px solid var(--background-modifier-border-hover);
+    min-height: 100px;
+    max-height: 85%;
     display: flex;
     flex-direction: column;
     background-color: var(--background-primary);
@@ -411,4 +410,27 @@
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
+}
+
+/* Resizable Divider */
+.postman-resizer {
+    height: 6px;
+    background-color: var(--background-modifier-border);
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.postman-resizer:hover, .postman-resizer.dragging {
+    background-color: var(--interactive-accent);
+}
+
+.postman-resizer::after {
+    content: '';
+    width: 30px;
+    height: 2px;
+    background-color: var(--background-modifier-border-hover);
+    border-radius: 2px;
 }

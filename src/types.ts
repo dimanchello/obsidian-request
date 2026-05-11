@@ -2,6 +2,7 @@ export interface Variable {
     key: string;
     value: string;
     enabled: boolean;
+    auto?: boolean; // Used to identify system-generated headers
 }
 
 export interface Environment {

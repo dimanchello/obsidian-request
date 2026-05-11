@@ -4,6 +4,8 @@ import { CollectionData, RequestItem, Environment, ExtractionRule, Variable } fr
 import { executeRequest } from '../network';
 import { importPostmanCollection, exportPostmanCollection } from '../postmanFormat';
 import { Notice } from 'obsidian';
+import { PreRequestsTab } from './PreRequestsTab';
+import { executeWithDependencies } from '../preRequests';
 
 interface AppProps {
     data: CollectionData;
@@ -121,7 +123,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </select>
                 </div>
 
-                <div style={{ padding: '10px' }}>
+                <div style={{ padding: '10px', position: 'relative' }}>
                     <input
                         type="text"
                         placeholder="Search requests..."
@@ -129,6 +131,15 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={{ width: '100%', background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '5px', borderRadius: '4px', fontSize: '12px' }}
                     />
+                    {searchQuery && (
+                        <button
+                            className="btn-ghost"
+                            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', padding: '2px 4px', fontSize: '10px' }}
+                            onClick={() => setSearchQuery('')}
+                        >
+                            ✕
+                        </button>
+                    )}
                 </div>
 
                 <div className="postman-request-list">
@@ -431,33 +442,71 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
         onChange(updatedReq);
     };
 
-    const renderVariableList = (listKey: 'queryParams' | 'headers' | 'bodyFormUrlEncoded') => (
-        <div>
-            {request[listKey].map((item: Variable, i: number) => (
-                <div key={i} className="postman-kv-row">
-                    <input type="checkbox" checked={item.enabled} onChange={(e) => updateVariableList(listKey, i, 'enabled', e.target.checked)} />
-                    <HighlightedInput
-                        className="postman-kv-input" style={{ flex: 1 }}
-                        placeholder="Key" value={item.key}
-                        onChange={(val: string) => updateVariableList(listKey, i, 'key', val)}
-                        collectionData={collectionData}
-                    />
-                    <HighlightedInput
-                        className="postman-kv-input" style={{ flex: 2 }}
-                        placeholder="Value" value={item.value}
-                        onChange={(val: string) => updateVariableList(listKey, i, 'value', val)}
-                        collectionData={collectionData}
-                    />
-                    <button className="btn-ghost" onClick={() => {
-                        const newList = [...request[listKey]]; newList.splice(i, 1); onChange({ ...request, [listKey]: newList });
-                    }}>×</button>
-                </div>
-            ))}
-            <button className="btn-ghost" style={{ marginTop: '10px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => onChange({ ...request, [listKey]: [...request[listKey], { key: '', value: '', enabled: true }] })}>
-                + Add
-            </button>
-        </div>
-    );
+    const [showHiddenHeaders, setShowHiddenHeaders] = React.useState(false);
+
+    const renderVariableList = (listKey: 'queryParams' | 'headers' | 'bodyFormUrlEncoded') => {
+        const items = request[listKey] || [];
+        const normalItems = listKey === 'headers' ? items.filter((i: any) => !i.auto) : items;
+        const autoItems = listKey === 'headers' ? items.filter((i: any) => i.auto) : [];
+
+        return (
+            <div>
+                {normalItems.map((item: Variable, i: number) => {
+                    const actualIndex = items.findIndex((orig: any) => orig === item);
+                    return (
+                        <div key={actualIndex} className="postman-kv-row">
+                            <input type="checkbox" checked={item.enabled} onChange={(e) => updateVariableList(listKey, actualIndex, 'enabled', e.target.checked)} />
+                            <HighlightedInput
+                                className="postman-kv-input" style={{ flex: 1 }}
+                                placeholder="Key" value={item.key}
+                                onChange={(val: string) => updateVariableList(listKey, actualIndex, 'key', val)}
+                                collectionData={collectionData}
+                            />
+                            <HighlightedInput
+                                className="postman-kv-input" style={{ flex: 2 }}
+                                placeholder="Value" value={item.value}
+                                onChange={(val: string) => updateVariableList(listKey, actualIndex, 'value', val)}
+                                collectionData={collectionData}
+                            />
+                            <button className="btn-ghost" onClick={() => {
+                                const newList = [...request[listKey]]; newList.splice(actualIndex, 1); onChange({ ...request, [listKey]: newList });
+                            }}>×</button>
+                        </div>
+                    );
+                })}
+                <button className="btn-ghost" style={{ marginTop: '10px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => onChange({ ...request, [listKey]: [...request[listKey], { key: '', value: '', enabled: true }] })}>
+                    + Add
+                </button>
+
+                {listKey === 'headers' && autoItems.length > 0 && (
+                    <div style={{ marginTop: '20px', borderTop: '1px dashed var(--background-modifier-border)', paddingTop: '10px' }}>
+                        <button className="btn-ghost" style={{ fontSize: '11px', padding: 0, color: 'var(--text-muted)' }} onClick={() => setShowHiddenHeaders(!showHiddenHeaders)}>
+                            {showHiddenHeaders ? '▼ Hide' : '▶ Show'} auto-generated headers
+                        </button>
+                        {showHiddenHeaders && (
+                            <div style={{ marginTop: '10px', opacity: 0.8 }}>
+                                {autoItems.map((item: Variable, i: number) => {
+                                    const actualIndex = items.findIndex((orig: any) => orig === item);
+                                    return (
+                                        <div key={actualIndex} className="postman-kv-row">
+                                            <input type="checkbox" checked={item.enabled} onChange={(e) => updateVariableList(listKey, actualIndex, 'enabled', e.target.checked)} />
+                                            <input className="postman-kv-input" style={{ flex: 1 }} value={item.key} onChange={(e) => updateVariableList(listKey, actualIndex, 'key', e.target.value)} disabled />
+                                            <HighlightedInput
+                                                className="postman-kv-input" style={{ flex: 2 }}
+                                                placeholder="Value" value={item.value}
+                                                onChange={(val: string) => updateVariableList(listKey, actualIndex, 'value', val)}
+                                                collectionData={collectionData}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -492,11 +541,22 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
             </div>
 
             <div className="postman-tabs-header">
-                {['Params', 'Auth', 'Headers', 'Body', 'Pre-req', 'Extract', 'Settings'].map(tab => (
-                    <div key={tab} className={`postman-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-                        {tab}
-                    </div>
-                ))}
+                {['Params', 'Auth', 'Headers', 'Body', 'Pre-req', 'Extract', 'Settings'].map(tab => {
+                    let hasData = false;
+                    if (tab === 'Params') hasData = request.queryParams?.some((p: any) => p.key || p.value);
+                    if (tab === 'Headers') hasData = request.headers?.some((p: any) => p.key || p.value) || Object.values(request.autoHeaders || {}).some((h: any) => !h.enabled);
+                    if (tab === 'Auth') hasData = request.auth?.type !== 'none';
+                    if (tab === 'Body') hasData = request.bodyType !== 'none';
+                    if (tab === 'Pre-req') hasData = request.dependencies && request.dependencies.length > 0;
+                    if (tab === 'Extract') hasData = request.extractionRules && request.extractionRules.length > 0;
+
+                    return (
+                        <div key={tab} className={`postman-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)} style={{ position: 'relative' }}>
+                            {tab}
+                            {hasData && <span style={{ position: 'absolute', top: '8px', right: '-2px', width: '6px', height: '6px', backgroundColor: 'var(--interactive-accent)', borderRadius: '50%' }}></span>}
+                        </div>
+                    );
+                })}
             </div>
 
             <div className="postman-tab-content">
@@ -676,20 +736,40 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                     {!loading && response && response.response && (
                         <>
                             {responseMode === 'raw' && (
-                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                <pre>
                                     {(() => {
                                         if (response.response.isBinary) {
                                             return `<Binary data: ${response.response.contentType}>`;
                                         }
-                                        if (response.response.json) {
+                                        const text = response.response.text;
+
+                                        if (response.response.contentType?.includes('json') || response.response.json) {
                                             try {
-                                                return JSON.stringify(response.response.json, null, 2);
+                                                const jsonObj = response.response.json || JSON.parse(text);
+                                                const jsonStr = JSON.stringify(jsonObj, null, 2);
+                                                // Basic syntax highlighting
+                                                const highlighted = jsonStr.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                                                    let cls = 'json-number';
+                                                    if (/^"/.test(match)) {
+                                                        if (/:$/.test(match)) {
+                                                            cls = 'json-key';
+                                                        } else {
+                                                            cls = 'json-string';
+                                                        }
+                                                    } else if (/true|false/.test(match)) {
+                                                        cls = 'json-boolean';
+                                                    } else if (/null/.test(match)) {
+                                                        cls = 'json-null';
+                                                    }
+                                                    return `<span class="${cls}">${match}</span>`;
+                                                });
+                                                return <code dangerouslySetInnerHTML={{ __html: highlighted }} />;
                                             } catch(e) {
-                                                return response.response.text;
+                                                return text;
                                             }
                                         }
-                                        const text = response.response.text;
-                                        if (text && (text.trim().startsWith('<') && text.includes('xml'))) {
+
+                                        if (text && (text.trim().startsWith('<') && (text.includes('xml') || response.response.contentType?.includes('xml')))) {
                                             let formatted = '';
                                             let pad = 0;
                                             text.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
@@ -705,6 +785,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                             });
                                             return formatted || text;
                                         }
+
                                         return text;
                                     })()}
                                 </pre>

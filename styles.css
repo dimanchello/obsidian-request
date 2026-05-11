@@ -399,3 +399,16 @@
 .postman-highlighted-input-display::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
 }
+
+/* Syntax highlighting for JSON responses */
+.json-key { color: var(--color-red); }
+.json-string { color: var(--color-green); }
+.json-number { color: var(--color-orange); }
+.json-boolean { color: var(--color-blue); }
+.json-null { color: var(--text-faint); font-style: italic; }
+
+.postman-response-body pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}

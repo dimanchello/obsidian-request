@@ -93,7 +93,7 @@ export function importPostmanCollection(jsonString: string): RequestItem[] {
     try {
         const data = JSON.parse(jsonString) as PostmanCollection;
         if (data && data.item) {
-            return extractRequests(data.item);
+            return extractRequests(data.item).map(normalizeRequest);
         }
         return [];
     } catch (e) {

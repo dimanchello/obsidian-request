@@ -119,13 +119,18 @@ export async function executeRequest(
         const contentType = obsidianResponse.headers['content-type']?.toString() || '';
         const isBinary = !contentType.includes('text') && !contentType.includes('json') && !contentType.includes('xml');
 
+        let jsonPayload = null;
+        if (contentType.includes('json')) {
+            jsonPayload = obsidianResponse.json;
+        }
+
         return {
             response: {
                 status: obsidianResponse.status,
                 headers: obsidianResponse.headers,
                 contentType,
                 text: isBinary ? '' : obsidianResponse.text,
-                json: obsidianResponse.json,
+                json: jsonPayload,
                 arrayBuffer: obsidianResponse.arrayBuffer,
                 isBinary
             },

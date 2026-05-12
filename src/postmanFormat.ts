@@ -15,6 +15,12 @@ interface PostmanItem {
             raw?: string;
             formdata?: { key: string; value: string; type: string; disabled?: boolean }[];
         };
+        auth?: {
+            type: string;
+            basic?: { key: string; value: string; type: string }[];
+            bearer?: { key: string; value: string; type: string }[];
+            apikey?: { key: string; value: string; type: string }[];
+        };
     };
     item?: PostmanItem[]; // For nested folders
 }
@@ -67,7 +73,30 @@ function extractRequests(items: PostmanItem[]): RequestItem[] {
                 }
             }
 
-            requests.push({
+            let authConfig = { type: 'none' } as any;
+            if (req.auth) {
+                if (req.auth.type === 'basic' && req.auth.basic) {
+                    authConfig = {
+                        type: 'basic',
+                        basicUsername: req.auth.basic.find((i: any) => i.key === 'username')?.value || '',
+                        basicPassword: req.auth.basic.find((i: any) => i.key === 'password')?.value || ''
+                    };
+                } else if (req.auth.type === 'bearer' && req.auth.bearer) {
+                    authConfig = {
+                        type: 'bearer',
+                        bearerToken: req.auth.bearer.find((i: any) => i.key === 'token')?.value || ''
+                    };
+                } else if (req.auth.type === 'apikey' && req.auth.apikey) {
+                    authConfig = {
+                        type: 'apikey',
+                        apiKeyKey: req.auth.apikey.find((i: any) => i.key === 'key')?.value || '',
+                        apiKeyValue: req.auth.apikey.find((i: any) => i.key === 'value')?.value || '',
+                        apiKeyAddTo: req.auth.apikey.find((i: any) => i.key === 'in')?.value || 'header'
+                    };
+                }
+            }
+
+            requests.push(normalizeRequest({
                 id: Date.now().toString() + Math.random().toString(36).substring(7),
                 name: item.name || 'Imported Request',
                 method: (req.method || 'GET') as any,
@@ -77,12 +106,8 @@ function extractRequests(items: PostmanItem[]): RequestItem[] {
                 bodyType,
                 bodyRaw,
                 bodyFormData,
-                bodyFormUrlEncoded: [],
-                bodyBinaryPath: '',
-                extractionRules: [], // Postman tests aren't easily converted to simple JSONPath rules
-                auth: { type: 'none' },
-                settings: { followRedirects: true, maxRedirects: 5, verifySsl: true }
-            });
+                auth: authConfig
+            }));
         }
     }
 
@@ -124,6 +149,33 @@ export function exportPostmanCollection(collectionData: CollectionData, collecti
                 };
             }
 
+            let auth: any = undefined;
+            if (req.auth.type === 'basic') {
+                auth = {
+                    type: 'basic',
+                    basic: [
+                        { key: 'username', value: req.auth.basicUsername || '', type: 'string' },
+                        { key: 'password', value: req.auth.basicPassword || '', type: 'string' }
+                    ]
+                };
+            } else if (req.auth.type === 'bearer') {
+                auth = {
+                    type: 'bearer',
+                    bearer: [
+                        { key: 'token', value: req.auth.bearerToken || '', type: 'string' }
+                    ]
+                };
+            } else if (req.auth.type === 'apikey') {
+                auth = {
+                    type: 'apikey',
+                    apikey: [
+                        { key: 'key', value: req.auth.apiKeyKey || '', type: 'string' },
+                        { key: 'value', value: req.auth.apiKeyValue || '', type: 'string' },
+                        { key: 'in', value: req.auth.apiKeyAddTo || 'header', type: 'string' }
+                    ]
+                };
+            }
+
             return {
                 name: req.name,
                 request: {
@@ -141,7 +193,8 @@ export function exportPostmanCollection(collectionData: CollectionData, collecti
                         value: h.value,
                         disabled: !h.enabled
                     })),
-                    body
+                    body,
+                    auth
                 }
             };
         })

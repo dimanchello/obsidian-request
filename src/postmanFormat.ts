@@ -1,4 +1,5 @@
 import { CollectionData, RequestItem, Variable } from './types';
+import { normalizeRequest } from './storage';
 
 // Simplified Postman Collection v2.1.0 Interfaces
 interface PostmanItem {

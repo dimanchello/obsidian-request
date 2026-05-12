@@ -11,6 +11,18 @@ class PostmanCollectionView extends TextFileView {
 
     constructor(leaf: WorkspaceLeaf) {
         super(leaf);
+
+        // Add "Open as Markdown" action
+        this.addAction('file-code-2', 'Open as Markdown', () => {
+            this.openAsMarkdown();
+        });
+    }
+
+    async openAsMarkdown() {
+        await this.leaf.setViewState({
+            type: 'markdown',
+            state: this.leaf.view.getState()
+        });
     }
 
     getViewData(): string {

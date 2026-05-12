@@ -682,12 +682,41 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'binary'} onChange={() => onChange({ ...request, bodyType: 'binary' })} /> binary</label>
                         </div>
                         {request.bodyType === 'json' && (
-                            <textarea
-                                style={{ flex: 1, width: '100%', fontFamily: 'var(--font-monospace)', background: 'var(--background-primary)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '10px', borderRadius: '4px', resize: 'none' }}
-                                value={request.bodyRaw}
-                                onChange={(e) => onChange({ ...request, bodyRaw: e.target.value })}
-                                placeholder={"{\n  \"key\": \"value\"\n}"}
-                            />
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
+                                    <button className="btn-ghost" style={{ fontSize: '11px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => {
+                                        try {
+                                            const parsed = JSON.parse(request.bodyRaw);
+                                            onChange({ ...request, bodyRaw: JSON.stringify(parsed, null, 2) });
+                                        } catch (e) {
+                                            if (request.bodyRaw.trim().startsWith('<')) {
+                                                let formatted = '';
+                                                let pad = 0;
+                                                request.bodyRaw.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
+                                                    if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
+                                                        formatted += '  '.repeat(pad) + node + '\n';
+                                                        pad += 1;
+                                                    } else if (node.match(/^<\/\w/)) {
+                                                        if (pad !== 0) pad -= 1;
+                                                        formatted += '  '.repeat(pad) + node + '\n';
+                                                    } else {
+                                                        formatted += '  '.repeat(pad) + node + '\n';
+                                                    }
+                                                });
+                                                onChange({ ...request, bodyRaw: formatted.trim() });
+                                            } else {
+                                                new Notice("Cannot prettify: Invalid JSON or XML");
+                                            }
+                                        }
+                                    }}>Prettify</button>
+                                </div>
+                                <textarea
+                                    style={{ flex: 1, width: '100%', minHeight: '150px', fontFamily: 'var(--font-monospace)', background: 'var(--background-primary)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '10px', borderRadius: '4px', resize: 'vertical' }}
+                                    value={request.bodyRaw}
+                                    onChange={(e) => onChange({ ...request, bodyRaw: e.target.value })}
+                                    placeholder={"{\n  \"key\": \"value\"\n}"}
+                                />
+                            </div>
                         )}
                         {request.bodyType === 'form-data' && (
                             <div>
@@ -791,18 +820,6 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                             <div style={{ display: 'flex', gap: '5px' }}>
                                 <button className={`btn-ghost ${responseMode === 'raw' ? 'active' : ''}`} style={{ fontSize: '10px', background: responseMode === 'raw' ? 'var(--background-modifier-active-hover)' : 'transparent' }} onClick={() => setResponseMode('raw')}>Raw</button>
                                 <button className={`btn-ghost ${responseMode === 'preview' ? 'active' : ''}`} style={{ fontSize: '10px', background: responseMode === 'preview' ? 'var(--background-modifier-active-hover)' : 'transparent' }} onClick={() => setResponseMode('preview')}>Preview</button>
-                                <button
-                                    className="btn-ghost"
-                                    style={{ fontSize: '10px', border: '1px solid var(--background-modifier-border)' }}
-                                    onClick={() => {
-                                        if (response && response.response) {
-                                            const text = response.response.json ? JSON.stringify(response.response.json, null, 2) : response.response.text;
-                                            navigator.clipboard.writeText(text).then(() => {
-                                                new Notice("Copied response to clipboard!");
-                                            });
-                                        }
-                                    }}
-                                >Copy</button>
                             </div>
                         )}
                     </div>

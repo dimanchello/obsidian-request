@@ -28,6 +28,12 @@ export const PreRequestsTab = ({ request, collectionData, onChange }: any) => {
     };
 
     const [searchQuery, setSearchQuery] = React.useState('');
+    const [dropdownOpen, setDropdownOpen] = React.useState(false);
+
+    const filteredRequests = availableRequests.filter((r: RequestItem) =>
+        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.url.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
         <div style={{ padding: '10px 0' }}>
@@ -35,44 +41,42 @@ export const PreRequestsTab = ({ request, collectionData, onChange }: any) => {
                 Select other requests to run sequentially before this one. Variables extracted from their responses will be available here.
             </p>
 
-            <div style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
+            <div style={{ marginBottom: '15px', position: 'relative' }}>
                 <input
                     className="postman-kv-input"
                     type="text"
                     placeholder="Search request to add..."
                     value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={{ flex: 1 }}
-                    list="prereq-requests-datalist"
-                    onKeyDown={(e: any) => {
-                        if (e.key === 'Enter') {
-                            // Find match by exact name
-                            const match = availableRequests.find((r: RequestItem) => r.name === e.target.value);
-                            if (match) {
-                                addDependency(match.id);
-                                setSearchQuery('');
-                            }
-                        }
+                    onChange={e => {
+                        setSearchQuery(e.target.value);
+                        setDropdownOpen(true);
                     }}
+                    onFocus={() => setDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}
+                    style={{ width: '100%' }}
                 />
-                <datalist id="prereq-requests-datalist">
-                    {availableRequests.map((r: RequestItem) => (
-                        <option key={r.id} value={r.name}>{r.method} {r.url}</option>
-                    ))}
-                </datalist>
-                <button
-                    className="btn-ghost"
-                    style={{ border: '1px solid var(--background-modifier-border) !important' }}
-                    onClick={() => {
-                        const match = availableRequests.find((r: RequestItem) => r.name === searchQuery);
-                        if (match) {
-                            addDependency(match.id);
-                            setSearchQuery('');
-                        }
-                    }}
-                >
-                    + Add
-                </button>
+                {dropdownOpen && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: '200px', overflowY: 'auto', background: 'var(--background-secondary)', border: '1px solid var(--background-modifier-border)', borderRadius: '4px', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                        {filteredRequests.length > 0 ? filteredRequests.map((r: RequestItem) => (
+                            <div
+                                key={r.id}
+                                style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--background-modifier-border)' }}
+                                onMouseDown={() => {
+                                    addDependency(r.id);
+                                    setSearchQuery('');
+                                    setDropdownOpen(false);
+                                }}
+                            >
+                                <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
+                                    <span style={{ fontSize: '10px', color: 'var(--color-orange)', marginRight: '6px' }}>{r.method}</span>
+                                    {r.name}
+                                </div>
+                            </div>
+                        )) : (
+                            <div style={{ padding: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>No matches found.</div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {dependencies.length > 0 ? (

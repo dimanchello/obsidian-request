@@ -150,6 +150,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                         placeholder="Search requests..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery(''); }}
                         style={{ width: '100%', background: 'var(--background-modifier-form-field)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '5px', borderRadius: '4px', fontSize: '12px' }}
                     />
                     {searchQuery && (
@@ -386,6 +387,48 @@ const HighlightedInput = ({ value, onChange, className, style, placeholder, coll
             <div className="postman-highlighted-input-display">
                 {renderHighlightedText()}
             </div>
+        </div>
+    );
+};
+
+const RawBodyEditor = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
+    const [isFocused, setIsFocused] = React.useState(false);
+    const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+    React.useEffect(() => {
+        if (isFocused && textareaRef.current) {
+            textareaRef.current.focus();
+        }
+    }, [isFocused]);
+
+    if (isFocused) {
+        return (
+            <textarea
+                ref={textareaRef}
+                style={{ flex: 1, width: '100%', minHeight: '150px', fontFamily: 'var(--font-monospace)', background: 'var(--background-primary)', color: 'var(--text-normal)', border: '1px solid var(--interactive-accent)', padding: '10px', borderRadius: '4px', resize: 'vertical' }}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onBlur={() => setIsFocused(false)}
+                placeholder={"{\n  \"key\": \"value\"\n}"}
+            />
+        );
+    }
+
+    return (
+        <div
+            style={{ flex: 1, width: '100%', minHeight: '150px', fontFamily: 'var(--font-monospace)', background: 'var(--background-primary)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '10px', borderRadius: '4px', cursor: 'text', overflowY: 'auto' }}
+            onClick={() => setIsFocused(true)}
+        >
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {(() => {
+                    if (!value) return <span style={{ color: 'var(--text-faint)' }}>{"{\n  \"key\": \"value\"\n}"}</span>;
+                    const formatted = formatAndHighlightResponseBody(value, '');
+                    if (formatted.isHtml) {
+                        return <code dangerouslySetInnerHTML={{ __html: formatted.content }} />;
+                    }
+                    return formatted.content;
+                })()}
+            </pre>
         </div>
     );
 };
@@ -710,11 +753,9 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                         }
                                     }}>Prettify</button>
                                 </div>
-                                <textarea
-                                    style={{ flex: 1, width: '100%', minHeight: '150px', fontFamily: 'var(--font-monospace)', background: 'var(--background-primary)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '10px', borderRadius: '4px', resize: 'vertical' }}
+                                <RawBodyEditor
                                     value={request.bodyRaw}
-                                    onChange={(e) => onChange({ ...request, bodyRaw: e.target.value })}
-                                    placeholder={"{\n  \"key\": \"value\"\n}"}
+                                    onChange={(val: string) => onChange({ ...request, bodyRaw: val })}
                                 />
                             </div>
                         )}

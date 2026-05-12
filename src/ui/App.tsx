@@ -20,6 +20,26 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
     const [showEnvManager, setShowEnvManager] = React.useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState("");
+    const [sidebarWidth, setSidebarWidth] = React.useState(250); // px
+
+    const startSidebarResizing = React.useCallback((e: any) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+
+        const doDrag = (dragEvent: any) => {
+            const deltaX = dragEvent.clientX - startX;
+            setSidebarWidth(Math.min(Math.max(startWidth + deltaX, 150), 500));
+        };
+
+        const stopDrag = () => {
+            document.removeEventListener('mousemove', doDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        };
+
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('mouseup', stopDrag);
+    }, [sidebarWidth]);
 
     React.useEffect(() => {
         setCollectionData(data);
@@ -104,7 +124,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
 
     return (
         <div className="postman-clone-root">
-            <div className={`postman-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
+            <div className={`postman-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`} style={{ width: window.innerWidth > 768 ? `${sidebarWidth}px` : undefined }}>
                 <div className="postman-sidebar-header">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Environment</label>
@@ -170,6 +190,8 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </div>
                 </div>
             </div>
+
+            {window.innerWidth > 768 && <div className="postman-sidebar-resizer" onMouseDown={startSidebarResizing}></div>}
 
             <div className="postman-main">
                 <div className="postman-mobile-header">

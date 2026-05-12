@@ -6,6 +6,7 @@ import { importPostmanCollection, exportPostmanCollection } from '../postmanForm
 import { Notice } from 'obsidian';
 import { PreRequestsTab } from './PreRequestsTab';
 import { executeWithDependencies } from '../preRequests';
+import { formatAndHighlightResponseBody } from './formatter';
 
 interface AppProps {
     data: CollectionData;
@@ -399,6 +400,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     const [responseSubTab, setResponseSubTab] = React.useState<'Body' | 'Headers' | 'Cookies' | 'Pre-req Logs'>('Body');
 
     const [localName, setLocalName] = React.useState(request.name);
+    const tabsRef = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
         setLocalName(request.name);
@@ -585,7 +587,16 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                 </div>
             </div>
 
-            <div className="postman-tabs-header">
+            <div
+                className="postman-tabs-header"
+                ref={tabsRef}
+                onWheel={(e) => {
+                    if (tabsRef.current) {
+                        e.preventDefault();
+                        tabsRef.current.scrollLeft += e.deltaY;
+                    }
+                }}
+            >
                 {['Params', 'Auth', 'Headers', 'Body', 'Pre-req', 'Extract', 'Settings'].map(tab => {
                     let hasData = false;
                     if (tab === 'Params') hasData = request.queryParams?.some((p: any) => p.key || p.value);
@@ -814,52 +825,11 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                                         if (response.response.isBinary) {
                                             return `<Binary data: ${response.response.contentType}>`;
                                         }
-                                        const text = response.response.text;
-
-                                        if (response.response.contentType?.includes('json') || response.response.json) {
-                                            try {
-                                                const jsonObj = response.response.json || JSON.parse(text);
-                                                const jsonStr = JSON.stringify(jsonObj, null, 2);
-                                                // Basic syntax highlighting
-                                                const highlighted = jsonStr.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
-                                                    let cls = 'json-number';
-                                                    if (/^"/.test(match)) {
-                                                        if (/:$/.test(match)) {
-                                                            cls = 'json-key';
-                                                        } else {
-                                                            cls = 'json-string';
-                                                        }
-                                                    } else if (/true|false/.test(match)) {
-                                                        cls = 'json-boolean';
-                                                    } else if (/null/.test(match)) {
-                                                        cls = 'json-null';
-                                                    }
-                                                    return `<span class="${cls}">${match}</span>`;
-                                                });
-                                                return <code dangerouslySetInnerHTML={{ __html: highlighted }} />;
-                                            } catch(e) {
-                                                return text;
-                                            }
+                                        const formatted = formatAndHighlightResponseBody(response.response.text, response.response.contentType);
+                                        if (formatted.isHtml) {
+                                            return <code dangerouslySetInnerHTML={{ __html: formatted.content }} />;
                                         }
-
-                                        if (text && (text.trim().startsWith('<') && (text.includes('xml') || response.response.contentType?.includes('xml')))) {
-                                            let formatted = '';
-                                            let pad = 0;
-                                            text.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
-                                                if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
-                                                    formatted += '  '.repeat(pad) + node + '\n';
-                                                    pad += 1;
-                                                } else if (node.match(/^<\/\w/)) {
-                                                    if (pad !== 0) pad -= 1;
-                                                    formatted += '  '.repeat(pad) + node + '\n';
-                                                } else {
-                                                    formatted += '  '.repeat(pad) + node + '\n';
-                                                }
-                                            });
-                                            return formatted || text;
-                                        }
-
-                                        return text;
+                                        return formatted.content;
                                     })()}
                                 </pre>
                             )}
@@ -918,44 +888,55 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                             {responseSubTab === 'Pre-req Logs' && (
                                 <div>
                                     {response.logs && response.logs.length > 0 ? (
-                                        response.logs.map((log: any, i: number) => (
-                                            <div key={i} style={{ marginBottom: '15px', border: '1px solid var(--background-modifier-border)', borderRadius: '4px', overflow: 'hidden' }}>
-                                                <div style={{ background: 'var(--background-secondary)', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontWeight: 'bold' }}>{log.requestName}</span>
-                                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <span className={`postman-badge ${log.status >= 200 && log.status < 300 ? 'success' : 'error'}`}>{log.status || 'Error'}</span>
-                                                        <span style={{ color: 'var(--text-muted)' }}>{log.timeMs}ms</span>
-                                                    </div>
-                                                </div>
-                                                <div style={{ padding: '10px' }}>
-                                                    {log.error ? (
-                                                        <div style={{ color: 'var(--color-red)' }}>{log.error}</div>
-                                                    ) : (
-                                                        <>
-                                                            {log.extractedVariables.length > 0 ? (
-                                                                <div style={{ marginBottom: '10px' }}>
-                                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '5px' }}>Extracted Variables</div>
-                                                                    {log.extractedVariables.map((v: any, j: number) => (
-                                                                        <div key={j} style={{ display: 'flex', gap: '5px', fontSize: '12px' }}>
-                                                                            <span style={{ color: 'var(--color-orange)' }}>{v.key}:</span>
-                                                                            <span style={{ color: 'var(--text-muted)' }}>{v.value}</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            {response.logs.map((log: any, i: number) => (
+                                                <details key={i} style={{ border: '1px solid var(--background-modifier-border)', borderRadius: '4px', overflow: 'hidden' }}>
+                                                    <summary style={{ background: 'var(--background-secondary)', padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', outline: 'none' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span className={`postman-badge ${log.status >= 200 && log.status < 300 ? 'success' : 'error'}`} style={{ fontSize: '9px', padding: '1px 4px' }}>{log.status || 'ERR'}</span>
+                                                            <span style={{ fontWeight: '600', fontSize: '12px' }}>{log.requestName}</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '11px' }}>
+                                                            <span style={{ color: 'var(--color-orange)' }}>{log.extractedVariables.length > 0 ? `+${log.extractedVariables.length} vars` : ''}</span>
+                                                            <span style={{ color: 'var(--text-muted)' }}>{log.timeMs}ms</span>
+                                                        </div>
+                                                    </summary>
+                                                    <div style={{ padding: '8px', fontSize: '11px', borderTop: '1px solid var(--background-modifier-border)' }}>
+                                                        {log.error ? (
+                                                            <div style={{ color: 'var(--color-red)' }}>{log.error}</div>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                {log.extractedVariables.length > 0 && (
+                                                                    <div>
+                                                                        <span style={{ color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '10px' }}>Extracted</span>
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                                                                            {log.extractedVariables.map((v: any, j: number) => (
+                                                                                <span key={j} style={{ background: 'var(--background-primary-alt)', padding: '2px 4px', borderRadius: '3px', border: '1px solid var(--background-modifier-border-hover)' }}>
+                                                                                    <span style={{ color: 'var(--color-orange)', marginRight: '4px' }}>{v.key}:</span>
+                                                                                    <span style={{ color: 'var(--text-normal)' }}>{v.value}</span>
+                                                                                </span>
+                                                                            ))}
                                                                         </div>
-                                                                    ))}
+                                                                    </div>
+                                                                )}
+                                                                <div>
+                                                                    <span style={{ color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '10px' }}>Body</span>
+                                                                    <pre style={{ marginTop: '4px', maxHeight: '120px', overflowY: 'auto', background: 'var(--background-primary-alt)', padding: '6px', borderRadius: '4px' }}>
+                                                                        {(() => {
+                                                                            const formatted = formatAndHighlightResponseBody(log.responseBody, '');
+                                                                            if (formatted.isHtml) {
+                                                                                return <code dangerouslySetInnerHTML={{ __html: formatted.content }} />;
+                                                                            }
+                                                                            return formatted.content;
+                                                                        })()}
+                                                                    </pre>
                                                                 </div>
-                                                            ) : (
-                                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No variables extracted.</div>
-                                                            )}
-                                                            <details style={{ marginTop: '10px' }}>
-                                                                <summary style={{ cursor: 'pointer', color: 'var(--interactive-accent)', fontSize: '12px' }}>View Response Body</summary>
-                                                                <pre style={{ marginTop: '5px', maxHeight: '150px', overflowY: 'auto', background: 'var(--background-primary-alt)', padding: '5px' }}>
-                                                                    {log.responseBody || 'No body'}
-                                                                </pre>
-                                                            </details>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </details>
+                                            ))}
+                                        </div>
                                     ) : (
                                         <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No dependency logs.</div>
                                     )}

@@ -52,6 +52,16 @@ export interface RequestItem {
     dependencies?: string[];
 }
 
+export interface PreRequestLog {
+    requestId: string;
+    requestName: string;
+    status: number;
+    timeMs: number;
+    extractedVariables: { key: string; value: string }[];
+    error?: string;
+    responseBody?: string;
+}
+
 export interface CollectionData {
     environments: Environment[];
     requests: RequestItem[];

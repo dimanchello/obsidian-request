@@ -194,6 +194,7 @@
     overflow-x: auto;
     white-space: nowrap;
     scrollbar-width: none; /* Firefox */
+    max-width: 100%;
 }
 .postman-tabs-header::-webkit-scrollbar {
     display: none; /* Safari/Chrome */

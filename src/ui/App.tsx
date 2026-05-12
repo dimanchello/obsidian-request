@@ -398,6 +398,12 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     const [responseHeight, setResponseHeight] = React.useState(35); // Percentage
     const [responseSubTab, setResponseSubTab] = React.useState<'Body' | 'Headers' | 'Cookies' | 'Pre-req Logs'>('Body');
 
+    const [localName, setLocalName] = React.useState(request.name);
+
+    React.useEffect(() => {
+        setLocalName(request.name);
+    }, [request.id, request.name]);
+
     const startResizing = React.useCallback((e: any) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -546,12 +552,14 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minWidth: 0 }}>
             <div className="postman-editor-header">
                 <input
                     className="postman-request-title-input"
-                    value={request.name}
-                    onChange={(e) => onChange({ ...request, name: e.target.value })}
+                    value={localName}
+                    onChange={(e) => setLocalName(e.target.value)}
+                    onBlur={() => { if (localName !== request.name) onChange({ ...request, name: localName }); }}
+                    onKeyDown={(e) => { if(e.key === 'Enter') { e.currentTarget.blur(); } }}
                     placeholder="Request Name"
                 />
 

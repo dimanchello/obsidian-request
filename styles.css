@@ -471,3 +471,51 @@
     user-select: text;
     -webkit-user-select: text;
 }
+
+/* Sidebar Drag and Drop */
+.postman-request-item {
+    user-select: none;
+}
+.postman-request-item.drag-over {
+    border-bottom: 2px solid var(--interactive-accent);
+}
+.postman-request-item.drag-over-top {
+    border-top: 2px solid var(--interactive-accent);
+    border-bottom: none;
+}
+
+/* Divider Item */
+.postman-divider-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 4px;
+    margin: 6px 0;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+.postman-divider-item:hover {
+    opacity: 1;
+}
+.postman-divider-item-line {
+    flex: 1;
+    height: 1px;
+    background-color: var(--background-modifier-border);
+}
+.postman-divider-input {
+    background: transparent;
+    border: none !important;
+    box-shadow: none !important;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    width: auto;
+    min-width: 50px;
+    padding: 0 5px;
+}
+.postman-divider-input:focus {
+    color: var(--text-normal);
+}

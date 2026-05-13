@@ -22,6 +22,9 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
     const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState("");
     const [sidebarWidth, setSidebarWidth] = React.useState(data.uiSettings?.sidebarWidth || 250);
+    const [draggedItemIndex, setDraggedItemIndex] = React.useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+    const [dragPosition, setDragPosition] = React.useState<'top' | 'bottom'>('bottom');
 
     React.useEffect(() => {
         setCollectionData(data);
@@ -65,9 +68,51 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         r.url.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const handleDragStart = (index: number) => {
+        setDraggedItemIndex(index);
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        setDragOverIndex(index);
+
+        // Determine if mouse is over top or bottom half of the element
+        const rect = (e.target as HTMLElement).closest('.postman-request-item, .postman-divider-item')?.getBoundingClientRect();
+        if (rect) {
+            const midPoint = rect.top + rect.height / 2;
+            setDragPosition(e.clientY < midPoint ? 'top' : 'bottom');
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        if (draggedItemIndex === null || draggedItemIndex === dropIndex) {
+            setDraggedItemIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
+        const newRequests = [...collectionData.requests];
+        const draggedItem = newRequests.splice(draggedItemIndex, 1)[0];
+
+        let targetIndex = dropIndex;
+        if (draggedItemIndex < dropIndex && dragPosition === 'top') {
+            targetIndex -= 1;
+        } else if (draggedItemIndex > dropIndex && dragPosition === 'bottom') {
+            targetIndex += 1;
+        }
+
+        newRequests.splice(targetIndex, 0, draggedItem);
+        handleSave({ ...collectionData, requests: newRequests });
+
+        setDraggedItemIndex(null);
+        setDragOverIndex(null);
+    };
+
     const addNewRequest = () => {
         const newReq: RequestItem = {
             id: Date.now().toString(),
+            itemType: 'request',
             name: 'New Request',
             method: 'GET',
             url: '',
@@ -86,6 +131,15 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         handleSave({ ...collectionData, requests: [...collectionData.requests, newReq] });
         setActiveReqId(newReq.id);
         if (window.innerWidth <= 768) setMobileSidebarOpen(false);
+    };
+
+    const addNewDivider = () => {
+        const newReq: any = {
+            id: Date.now().toString(),
+            itemType: 'divider',
+            name: 'New Section'
+        };
+        handleSave({ ...collectionData, requests: [...collectionData.requests, newReq] });
     };
 
     const handleImport = async () => {
@@ -172,27 +226,74 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                 </div>
 
                 <div className="postman-request-list">
-                    {filteredRequests.map((req: RequestItem) => (
-                        <div key={req.id}
-                             onClick={() => { setActiveReqId(req.id); if (window.innerWidth <= 768) setMobileSidebarOpen(false); }}
-                             className={`postman-request-item ${activeReqId === req.id ? 'active' : ''}`}>
-                            <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                                <span className={`postman-method-badge method-${req.method}`}>{req.method}</span>
-                                <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.name}</span>
+                    {filteredRequests.map((req: RequestItem, index: number) => {
+                        const isDragOver = dragOverIndex === index;
+                        const dragClass = isDragOver ? (dragPosition === 'top' ? 'drag-over-top' : 'drag-over') : '';
+
+                        if (req.itemType === 'divider') {
+                            return (
+                                <div
+                                    key={req.id}
+                                    draggable
+                                    onDragStart={() => handleDragStart(index)}
+                                    onDragOver={(e) => handleDragOver(e, index)}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onDragEnd={() => { setDraggedItemIndex(null); setDragOverIndex(null); }}
+                                    className={`postman-divider-item ${dragClass}`}
+                                >
+                                    <div className="postman-divider-item-line"></div>
+                                    <input
+                                        className="postman-divider-input"
+                                        value={req.name}
+                                        onChange={(e) => {
+                                            const newRequests = [...collectionData.requests];
+                                            const idx = newRequests.findIndex(r => r.id === req.id);
+                                            if (idx >= 0) newRequests[idx].name = e.target.value;
+                                            handleSave({ ...collectionData, requests: newRequests });
+                                        }}
+                                    />
+                                    <div className="postman-divider-item-line"></div>
+                                    <button className="btn-ghost" style={{ padding: '0 4px', fontSize: '10px', marginLeft: '5px', opacity: 0.5 }} onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newReqs = collectionData.requests.filter(r => r.id !== req.id);
+                                        handleSave({ ...collectionData, requests: newReqs });
+                                    }}>×</button>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div key={req.id}
+                                draggable
+                                onDragStart={() => handleDragStart(index)}
+                                onDragOver={(e) => handleDragOver(e, index)}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onDragEnd={() => { setDraggedItemIndex(null); setDragOverIndex(null); }}
+                                onClick={() => { setActiveReqId(req.id); if (window.innerWidth <= 768) setMobileSidebarOpen(false); }}
+                                className={`postman-request-item ${activeReqId === req.id ? 'active' : ''} ${dragClass}`}>
+                                <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                                    <span className={`postman-method-badge method-${req.method}`}>{req.method}</span>
+                                    <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.name}</span>
+                                </div>
+                                <button className="btn-ghost" onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Are you sure you want to delete "${req.name}"?`)) {
+                                        const newReqs = collectionData.requests.filter(r => r.id !== req.id);
+                                        handleSave({ ...collectionData, requests: newReqs });
+                                        if (activeReqId === req.id) setActiveReqId(newReqs.find(r => r.itemType !== 'divider')?.id || null);
+                                    }
+                                }}>×</button>
                             </div>
-                            <button className="btn-ghost" onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm(`Are you sure you want to delete "${req.name}"?`)) {
-                                    const newReqs = collectionData.requests.filter(r => r.id !== req.id);
-                                    handleSave({ ...collectionData, requests: newReqs });
-                                    if (activeReqId === req.id) setActiveReqId(newReqs.length > 0 ? newReqs[0].id : null);
-                                }
-                            }}>×</button>
-                        </div>
-                    ))}
-                    <button style={{ width: '100%', marginTop: '10px', background: 'transparent', border: '1px dashed var(--background-modifier-border)', color: 'var(--text-muted)', padding: '8px', borderRadius: '4px', cursor: 'pointer' }} onClick={addNewRequest}>
-                        + Add Request
-                    </button>
+                        );
+                    })}
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
+                        <button style={{ flex: 2, background: 'transparent', border: '1px dashed var(--background-modifier-border)', color: 'var(--text-muted)', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }} onClick={addNewRequest}>
+                            + Request
+                        </button>
+                        <button style={{ flex: 1, background: 'transparent', border: '1px dashed var(--background-modifier-border)', color: 'var(--text-muted)', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }} onClick={addNewDivider}>
+                            + Divider
+                        </button>
+                    </div>
                     <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
                         <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={handleImport}>Import</button>
                         <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={handleExport}>Export</button>
@@ -208,7 +309,11 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     <span style={{ fontWeight: 'bold' }}>API Collection</span>
                 </div>
 
-                {activeReq ? (
+                {activeReq?.itemType === 'divider' ? (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                        This is a visual divider. Select a request to edit.
+                    </div>
+                ) : activeReq ? (
                     <RequestEditor
                         request={activeReq}
                         collectionData={collectionData}

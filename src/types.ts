@@ -36,6 +36,7 @@ export interface RequestSettings {
 
 export interface RequestItem {
     id: string;
+    itemType?: 'request' | 'divider';
     name: string;
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
     url: string;

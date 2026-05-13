@@ -10,6 +10,13 @@ export const DEFAULT_COLLECTION_DATA: CollectionData = {
 export function normalizeRequest(req: any): RequestItem {
     if (!req) return req;
 
+    if (req.itemType === 'divider') {
+        return {
+            ...req,
+            itemType: 'divider'
+        };
+    }
+
     // Inject auto headers if they don't exist in the list of headers yet
     let headers = req.headers || [];
     const existingAutoKeys = new Set(headers.filter((h: any) => h.auto).map((h: any) => h.key));

@@ -128,6 +128,22 @@ export default class PostmanClonePlugin extends Plugin {
                 return false;
             }
         });
+
+        // Add file menu option
+        this.registerEvent(
+            this.app.workspace.on('file-menu', (menu, file) => {
+                if (file instanceof TFile && file.extension === 'md') {
+                    menu.addItem((item) => {
+                        item
+                            .setTitle('Open as API Collection')
+                            .setIcon('zap')
+                            .onClick(() => {
+                                this.activateCollectionView(file);
+                            });
+                    });
+                }
+            })
+        );
     }
 
     // Check all leaves to see if any are standard markdown views but have the api-collection frontmatter
@@ -168,12 +184,17 @@ export default class PostmanClonePlugin extends Plugin {
     }
 
     async activateCollectionView(file: TFile) {
-        let leaf = this.app.workspace.getLeaf(false);
-        if (leaf.view.getViewType() !== VIEW_TYPE_POSTMAN_COLLECTION) {
-            await leaf.setViewState({
-                type: VIEW_TYPE_POSTMAN_COLLECTION,
-                state: { file: file.path }
-            });
+        let leaf = this.app.workspace.getMostRecentLeaf();
+        if (leaf) {
+            if (this.suspendedLeaves.has(leaf)) {
+                this.suspendedLeaves.delete(leaf);
+            }
+            if (leaf.view.getViewType() !== VIEW_TYPE_POSTMAN_COLLECTION) {
+                await leaf.setViewState({
+                    type: VIEW_TYPE_POSTMAN_COLLECTION,
+                    state: { file: file.path }
+                });
+            }
         }
     }
 }

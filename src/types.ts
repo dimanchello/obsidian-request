@@ -62,8 +62,13 @@ export interface PreRequestLog {
     responseBody?: string;
 }
 
+export interface UiSettings {
+    sidebarWidth?: number;
+}
+
 export interface CollectionData {
     environments: Environment[];
     requests: RequestItem[];
     activeEnvironmentId: string | null;
+    uiSettings?: UiSettings;
 }

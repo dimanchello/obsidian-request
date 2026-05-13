@@ -21,7 +21,14 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
     const [showEnvManager, setShowEnvManager] = React.useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState("");
-    const [sidebarWidth, setSidebarWidth] = React.useState(250); // px
+    const [sidebarWidth, setSidebarWidth] = React.useState(data.uiSettings?.sidebarWidth || 250);
+
+    React.useEffect(() => {
+        setCollectionData(data);
+        if (data.uiSettings?.sidebarWidth) {
+            setSidebarWidth(data.uiSettings.sidebarWidth);
+        }
+    }, [data]);
 
     const startSidebarResizing = React.useCallback((e: any) => {
         e.preventDefault();
@@ -33,18 +40,18 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
             setSidebarWidth(Math.min(Math.max(startWidth + deltaX, 150), 500));
         };
 
-        const stopDrag = () => {
+        const stopDrag = (dragEvent: any) => {
             document.removeEventListener('mousemove', doDrag);
             document.removeEventListener('mouseup', stopDrag);
+            // Save the final width to the collection data
+            const deltaX = dragEvent.clientX - startX;
+            const finalWidth = Math.min(Math.max(startWidth + deltaX, 150), 500);
+            onSave({ ...collectionData, uiSettings: { ...collectionData.uiSettings, sidebarWidth: finalWidth } });
         };
 
         document.addEventListener('mousemove', doDrag);
         document.addEventListener('mouseup', stopDrag);
-    }, [sidebarWidth]);
-
-    React.useEffect(() => {
-        setCollectionData(data);
-    }, [data]);
+    }, [sidebarWidth, collectionData, onSave]);
 
     const handleSave = (newData: CollectionData) => {
         setCollectionData(newData);
@@ -717,42 +724,42 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                 )}
                 {activeTab === 'Body' && (
                     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', fontSize: '0.9em', flexWrap: 'wrap' }}>
+                        <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', fontSize: '0.9em', flexWrap: 'wrap', alignItems: 'center' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'none'} onChange={() => onChange({ ...request, bodyType: 'none' })} /> none</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'json'} onChange={() => onChange({ ...request, bodyType: 'json' })} /> raw (JSON)</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'form-data'} onChange={() => onChange({ ...request, bodyType: 'form-data' })} /> form-data</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'x-www-form-urlencoded'} onChange={() => onChange({ ...request, bodyType: 'x-www-form-urlencoded' })} /> x-www-form-urlencoded</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><input type="radio" checked={request.bodyType === 'binary'} onChange={() => onChange({ ...request, bodyType: 'binary' })} /> binary</label>
+                            {request.bodyType === 'json' && (
+                                <button className="btn-ghost" style={{ marginLeft: 'auto', fontSize: '11px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => {
+                                    try {
+                                        const parsed = JSON.parse(request.bodyRaw);
+                                        onChange({ ...request, bodyRaw: JSON.stringify(parsed, null, 2) });
+                                    } catch (e) {
+                                        if (request.bodyRaw.trim().startsWith('<')) {
+                                            let formatted = '';
+                                            let pad = 0;
+                                            request.bodyRaw.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
+                                                if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
+                                                    formatted += '  '.repeat(pad) + node + '\n';
+                                                    pad += 1;
+                                                } else if (node.match(/^<\/\w/)) {
+                                                    if (pad !== 0) pad -= 1;
+                                                    formatted += '  '.repeat(pad) + node + '\n';
+                                                } else {
+                                                    formatted += '  '.repeat(pad) + node + '\n';
+                                                }
+                                            });
+                                            onChange({ ...request, bodyRaw: formatted.trim() });
+                                        } else {
+                                            new Notice("Cannot prettify: Invalid JSON or XML");
+                                        }
+                                    }
+                                }}>Prettify</button>
+                            )}
                         </div>
                         {request.bodyType === 'json' && (
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
-                                    <button className="btn-ghost" style={{ fontSize: '11px', border: '1px solid var(--background-modifier-border) !important' }} onClick={() => {
-                                        try {
-                                            const parsed = JSON.parse(request.bodyRaw);
-                                            onChange({ ...request, bodyRaw: JSON.stringify(parsed, null, 2) });
-                                        } catch (e) {
-                                            if (request.bodyRaw.trim().startsWith('<')) {
-                                                let formatted = '';
-                                                let pad = 0;
-                                                request.bodyRaw.split(/(?=(?:<[^>]+>))/).forEach((node: string) => {
-                                                    if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
-                                                        formatted += '  '.repeat(pad) + node + '\n';
-                                                        pad += 1;
-                                                    } else if (node.match(/^<\/\w/)) {
-                                                        if (pad !== 0) pad -= 1;
-                                                        formatted += '  '.repeat(pad) + node + '\n';
-                                                    } else {
-                                                        formatted += '  '.repeat(pad) + node + '\n';
-                                                    }
-                                                });
-                                                onChange({ ...request, bodyRaw: formatted.trim() });
-                                            } else {
-                                                new Notice("Cannot prettify: Invalid JSON or XML");
-                                            }
-                                        }
-                                    }}>Prettify</button>
-                                </div>
                                 <RawBodyEditor
                                     value={request.bodyRaw}
                                     onChange={(val: string) => onChange({ ...request, bodyRaw: val })}

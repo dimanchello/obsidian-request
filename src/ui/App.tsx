@@ -63,10 +63,11 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
 
     const activeReq = collectionData.requests.find(r => r.id === activeReqId);
 
-    const filteredRequests = collectionData.requests.filter(r =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.url.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredRequests = collectionData.requests.filter(r => {
+        const nameMatch = (r.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const urlMatch = (r.url || '').toLowerCase().includes(searchQuery.toLowerCase());
+        return nameMatch || urlMatch;
+    });
 
     const handleDragStart = (index: number) => {
         setDraggedItemIndex(index);

@@ -3,7 +3,7 @@ import { CollectionData, RequestItem } from '../types';
 
 export const PreRequestsTab = ({ request, collectionData, onChange }: any) => {
 
-    const availableRequests = collectionData.requests.filter((r: RequestItem) => r.id !== request.id);
+    const availableRequests = collectionData.requests.filter((r: RequestItem) => r.id !== request.id && r.itemType !== 'divider');
     const dependencies: string[] = request.dependencies || [];
 
     const addDependency = (id: string) => {
@@ -30,10 +30,11 @@ export const PreRequestsTab = ({ request, collectionData, onChange }: any) => {
     const [searchQuery, setSearchQuery] = React.useState('');
     const [dropdownOpen, setDropdownOpen] = React.useState(false);
 
-    const filteredRequests = availableRequests.filter((r: RequestItem) =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.url.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredRequests = availableRequests.filter((r: RequestItem) => {
+        const nameMatch = (r.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const urlMatch = (r.url || '').toLowerCase().includes(searchQuery.toLowerCase());
+        return nameMatch || urlMatch;
+    });
 
     return (
         <div style={{ padding: '10px 0' }}>

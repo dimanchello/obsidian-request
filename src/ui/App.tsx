@@ -605,8 +605,8 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
         setLoadingStatus('');
         setResponse(null);
         try {
-            // executeWithDependencies handles the actual request AND its dependencies recursively,
-            // as well as inline mutation of collectionData to satisfy dependency chains.
+            // executeWithDependencies handles the flat dependencies sequentially,
+            // then calls executeRequest on the main request.
             const res = await executeWithDependencies(request.id, collectionData, onExtract, (status) => setLoadingStatus(status));
             setResponse(res);
         } catch (e: any) {

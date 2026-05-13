@@ -50,6 +50,7 @@ export interface RequestItem {
     auth: AuthConfig;
     settings: RequestSettings;
     dependencies?: string[];
+    localVariables?: Variable[];
 }
 
 export interface PreRequestLog {

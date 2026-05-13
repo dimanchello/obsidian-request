@@ -216,21 +216,38 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                             const newRequests = collectionData.requests.map(r => r.id === updatedReq.id ? updatedReq : r);
                             handleSave({ ...collectionData, requests: newRequests });
                         }}
-                        onExtract={(envId: string, key: string, value: string) => {
-                            const newEnvs = collectionData.environments.map(e => {
-                                if (e.id === envId) {
-                                    const existingVarIndex = e.variables.findIndex(v => v.key === key);
-                                    let newVars = [...e.variables];
-                                    if (existingVarIndex >= 0) {
-                                        newVars[existingVarIndex] = { ...newVars[existingVarIndex], value: value };
-                                    } else {
-                                        newVars.push({ key, value, enabled: true });
+                        onExtract={(envId: string, key: string, value: string, isLocal: boolean, localReqId?: string) => {
+                            if (isLocal && localReqId) {
+                                const newRequests = collectionData.requests.map(r => {
+                                    if (r.id === localReqId) {
+                                        const newVars = [...(r.localVariables || [])];
+                                        const existingVarIndex = newVars.findIndex(v => v.key === key);
+                                        if (existingVarIndex >= 0) {
+                                            newVars[existingVarIndex] = { ...newVars[existingVarIndex], value };
+                                        } else {
+                                            newVars.push({ key, value, enabled: true });
+                                        }
+                                        return { ...r, localVariables: newVars };
                                     }
-                                    return { ...e, variables: newVars };
-                                }
-                                return e;
-                            });
-                            handleSave({ ...collectionData, environments: newEnvs });
+                                    return r;
+                                });
+                                handleSave({ ...collectionData, requests: newRequests });
+                            } else {
+                                const newEnvs = collectionData.environments.map(e => {
+                                    if (e.id === envId) {
+                                        const existingVarIndex = e.variables.findIndex(v => v.key === key);
+                                        let newVars = [...e.variables];
+                                        if (existingVarIndex >= 0) {
+                                            newVars[existingVarIndex] = { ...newVars[existingVarIndex], value: value };
+                                        } else {
+                                            newVars.push({ key, value, enabled: true });
+                                        }
+                                        return { ...e, variables: newVars };
+                                    }
+                                    return e;
+                                });
+                                handleSave({ ...collectionData, environments: newEnvs });
+                            }
                         }}
                     />
                 ) : (
@@ -647,12 +664,13 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
                     }
                 }}
             >
-                {['Params', 'Auth', 'Headers', 'Body', 'Pre-req', 'Extract', 'Settings'].map(tab => {
+                {['Params', 'Auth', 'Headers', 'Body', 'Variables', 'Pre-req', 'Extract', 'Settings'].map(tab => {
                     let hasData = false;
                     if (tab === 'Params') hasData = request.queryParams?.some((p: any) => p.key || p.value);
                     if (tab === 'Headers') hasData = request.headers?.some((p: any) => p.key || p.value) || Object.values(request.autoHeaders || {}).some((h: any) => !h.enabled);
                     if (tab === 'Auth') hasData = request.auth?.type !== 'none';
                     if (tab === 'Body') hasData = request.bodyType !== 'none';
+                    if (tab === 'Variables') hasData = request.localVariables && request.localVariables.length > 0;
                     if (tab === 'Pre-req') hasData = request.dependencies && request.dependencies.length > 0;
                     if (tab === 'Extract') hasData = request.extractionRules && request.extractionRules.length > 0;
 
@@ -668,6 +686,7 @@ const RequestEditor = ({ request, collectionData, onChange, onExtract }: any) =>
             <div className="postman-tab-content">
                 {activeTab === 'Params' && renderVariableList('queryParams')}
                 {activeTab === 'Headers' && renderVariableList('headers')}
+                {activeTab === 'Variables' && renderVariableList('localVariables' as any)}
                 {activeTab === 'Auth' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

@@ -27,7 +27,8 @@ export function normalizeRequest(req: any): RequestItem {
         extractionRules: req.extractionRules || [],
         auth: req.auth || { type: 'none' },
         settings: req.settings || { followRedirects: true, maxRedirects: 5, verifySsl: true },
-        dependencies: req.dependencies || []
+        dependencies: req.dependencies || [],
+        localVariables: req.localVariables || []
     };
 }
 

@@ -39,6 +39,12 @@ function extractRequests(items: PostmanItem[]): RequestItem[] {
 
     for (const item of items) {
         if (item.item) {
+            // It's a folder. We create a divider for it.
+            requests.push(normalizeRequest({
+                id: Date.now().toString() + Math.random().toString(36).substring(7),
+                name: item.name || 'Folder',
+                itemType: 'divider'
+            }));
             requests = requests.concat(extractRequests(item.item));
         } else if (item.request) {
             const req = item.request;
@@ -129,76 +135,96 @@ export function importPostmanCollection(jsonString: string): RequestItem[] {
 }
 
 export function exportPostmanCollection(collectionData: CollectionData, collectionName: string): string {
+    const items: PostmanItem[] = [];
+    let currentFolder: PostmanItem | null = null;
+
+    for (const req of collectionData.requests) {
+        if (req.itemType === 'divider') {
+            currentFolder = {
+                name: req.name,
+                item: []
+            };
+            items.push(currentFolder);
+            continue;
+        }
+
+        let body: any = undefined;
+        if (req.bodyType === 'json' || req.bodyType === 'raw') {
+            body = { mode: 'raw', raw: req.bodyRaw };
+        } else if (req.bodyType === 'form-data') {
+            body = {
+                mode: 'formdata',
+                formdata: req.bodyFormData.map(f => ({
+                    key: f.key,
+                    value: f.value,
+                    type: f.type,
+                    disabled: !f.enabled
+                }))
+            };
+        }
+
+        let auth: any = undefined;
+        if (req.auth.type === 'basic') {
+            auth = {
+                type: 'basic',
+                basic: [
+                    { key: 'username', value: req.auth.basicUsername || '', type: 'string' },
+                    { key: 'password', value: req.auth.basicPassword || '', type: 'string' }
+                ]
+            };
+        } else if (req.auth.type === 'bearer') {
+            auth = {
+                type: 'bearer',
+                bearer: [
+                    { key: 'token', value: req.auth.bearerToken || '', type: 'string' }
+                ]
+            };
+        } else if (req.auth.type === 'apikey') {
+            auth = {
+                type: 'apikey',
+                apikey: [
+                    { key: 'key', value: req.auth.apiKeyKey || '', type: 'string' },
+                    { key: 'value', value: req.auth.apiKeyValue || '', type: 'string' },
+                    { key: 'in', value: req.auth.apiKeyAddTo || 'header', type: 'string' }
+                ]
+            };
+        }
+
+        const postmanReq: PostmanItem = {
+            name: req.name,
+            request: {
+                method: req.method,
+                url: {
+                    raw: req.url,
+                    query: req.queryParams.map(q => ({
+                        key: q.key,
+                        value: q.value,
+                        disabled: !q.enabled
+                    }))
+                },
+                header: req.headers.map(h => ({
+                    key: h.key,
+                    value: h.value,
+                    disabled: !h.enabled
+                })),
+                body,
+                auth
+            }
+        };
+
+        if (currentFolder && currentFolder.item) {
+            currentFolder.item.push(postmanReq);
+        } else {
+            items.push(postmanReq);
+        }
+    }
+
     const postmanData: PostmanCollection = {
         info: {
             name: collectionName || "Obsidian API Collection",
             schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
         },
-        item: collectionData.requests.map(req => {
-            let body: any = undefined;
-            if (req.bodyType === 'json' || req.bodyType === 'raw') {
-                body = { mode: 'raw', raw: req.bodyRaw };
-            } else if (req.bodyType === 'form-data') {
-                body = {
-                    mode: 'formdata',
-                    formdata: req.bodyFormData.map(f => ({
-                        key: f.key,
-                        value: f.value,
-                        type: f.type,
-                        disabled: !f.enabled
-                    }))
-                };
-            }
-
-            let auth: any = undefined;
-            if (req.auth.type === 'basic') {
-                auth = {
-                    type: 'basic',
-                    basic: [
-                        { key: 'username', value: req.auth.basicUsername || '', type: 'string' },
-                        { key: 'password', value: req.auth.basicPassword || '', type: 'string' }
-                    ]
-                };
-            } else if (req.auth.type === 'bearer') {
-                auth = {
-                    type: 'bearer',
-                    bearer: [
-                        { key: 'token', value: req.auth.bearerToken || '', type: 'string' }
-                    ]
-                };
-            } else if (req.auth.type === 'apikey') {
-                auth = {
-                    type: 'apikey',
-                    apikey: [
-                        { key: 'key', value: req.auth.apiKeyKey || '', type: 'string' },
-                        { key: 'value', value: req.auth.apiKeyValue || '', type: 'string' },
-                        { key: 'in', value: req.auth.apiKeyAddTo || 'header', type: 'string' }
-                    ]
-                };
-            }
-
-            return {
-                name: req.name,
-                request: {
-                    method: req.method,
-                    url: {
-                        raw: req.url,
-                        query: req.queryParams.map(q => ({
-                            key: q.key,
-                            value: q.value,
-                            disabled: !q.enabled
-                        }))
-                    },
-                    header: req.headers.map(h => ({
-                        key: h.key,
-                        value: h.value,
-                        disabled: !h.enabled
-                    })),
-                    body,
-                    auth
-                }
-            };
-        })
+        item: items
     };
 
     return JSON.stringify(postmanData, null, 2);

@@ -25,6 +25,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
     const [draggedItemIndex, setDraggedItemIndex] = React.useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
     const [dragPosition, setDragPosition] = React.useState<'top' | 'bottom'>('bottom');
+    const [showExportModal, setShowExportModal] = React.useState(false);
 
     React.useEffect(() => {
         setCollectionData(data);
@@ -154,6 +155,23 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
 
             if (!result.canceled && result.filePaths.length > 0) {
                 const content = fs.readFileSync(result.filePaths[0], 'utf8');
+
+                // Determine format
+                try {
+                    const parsed = JSON.parse(content);
+                    if (parsed.requests && Array.isArray(parsed.requests) && parsed.environments) {
+                        // Obsidian Native Format
+                        const nativeReqs = parsed.requests.map((r: any) => {
+                            // Ensure new IDs to avoid conflicts
+                            return { ...r, id: Date.now().toString() + Math.random().toString(36).substring(7) };
+                        });
+                        handleSave({ ...collectionData, requests: [...collectionData.requests, ...nativeReqs] });
+                        new Notice(`Successfully imported ${nativeReqs.length} requests in native format!`);
+                        return;
+                    }
+                } catch(e) {}
+
+                // Fallback to Postman Format
                 const importedRequests = importPostmanCollection(content);
                 if (importedRequests.length > 0) {
                     handleSave({ ...collectionData, requests: [...collectionData.requests, ...importedRequests] });
@@ -167,14 +185,24 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         }
     };
 
-    const handleExport = () => {
+    const handleExport = (format: 'postman' | 'native') => {
         try {
-            const json = exportPostmanCollection(collectionData, "Obsidian Export");
+            let json = '';
+            let filename = '';
+
+            if (format === 'postman') {
+                json = exportPostmanCollection(collectionData, "Obsidian Export");
+                filename = `postman_collection_${Date.now()}.json`;
+            } else {
+                json = JSON.stringify(collectionData, null, 2);
+                filename = `obsidian_api_native_${Date.now()}.json`;
+            }
+
             const blob = new Blob([json], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `obsidian_api_collection_${Date.now()}.json`;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -183,6 +211,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
         } catch(e) {
             new Notice("Export failed!");
         }
+        setShowExportModal(false);
     };
 
     return (
@@ -233,33 +262,26 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
 
                         if (req.itemType === 'divider') {
                             return (
-                                <div
+                                <DividerItem
                                     key={req.id}
-                                    draggable
-                                    onDragStart={() => handleDragStart(index)}
-                                    onDragOver={(e) => handleDragOver(e, index)}
-                                    onDrop={(e) => handleDrop(e, index)}
-                                    onDragEnd={() => { setDraggedItemIndex(null); setDragOverIndex(null); }}
-                                    className={`postman-divider-item ${dragClass}`}
-                                >
-                                    <div className="postman-divider-item-line"></div>
-                                    <input
-                                        className="postman-divider-input"
-                                        value={req.name}
-                                        onChange={(e) => {
-                                            const newRequests = [...collectionData.requests];
-                                            const idx = newRequests.findIndex(r => r.id === req.id);
-                                            if (idx >= 0) newRequests[idx].name = e.target.value;
-                                            handleSave({ ...collectionData, requests: newRequests });
-                                        }}
-                                    />
-                                    <div className="postman-divider-item-line"></div>
-                                    <button className="btn-ghost" style={{ padding: '0 4px', fontSize: '10px', marginLeft: '5px', opacity: 0.5 }} onClick={(e) => {
-                                        e.stopPropagation();
+                                    req={req}
+                                    index={index}
+                                    dragClass={dragClass}
+                                    handleDragStart={handleDragStart}
+                                    handleDragOver={handleDragOver}
+                                    handleDrop={handleDrop}
+                                    handleDragEnd={() => { setDraggedItemIndex(null); setDragOverIndex(null); }}
+                                    onChange={(newName: string) => {
+                                        const newRequests = [...collectionData.requests];
+                                        const idx = newRequests.findIndex(r => r.id === req.id);
+                                        if (idx >= 0) newRequests[idx].name = newName;
+                                        handleSave({ ...collectionData, requests: newRequests });
+                                    }}
+                                    onDelete={() => {
                                         const newReqs = collectionData.requests.filter(r => r.id !== req.id);
                                         handleSave({ ...collectionData, requests: newReqs });
-                                    }}>×</button>
-                                </div>
+                                    }}
+                                />
                             );
                         }
 
@@ -297,7 +319,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                     </div>
                     <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
                         <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={handleImport}>Import</button>
-                        <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={handleExport}>Export</button>
+                        <button className="btn-ghost" style={{ flex: 1, border: '1px solid var(--background-modifier-border) !important', fontSize: '11px' }} onClick={() => setShowExportModal(true)}>Export</button>
                     </div>
                 </div>
             </div>
@@ -365,6 +387,30 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
 
             {showEnvManager && (
                 <EnvironmentManager collectionData={collectionData} onSave={handleSave} onClose={() => setShowEnvManager(false)} />
+            )}
+
+            {showExportModal && (
+                <div className="postman-modal-overlay" onClick={() => setShowExportModal(false)}>
+                    <div className="postman-modal" style={{ width: '400px', height: 'auto', padding: '20px' }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ marginTop: 0 }}>Export Collection</h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Select the format you want to export your collection in:</p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+                            <button
+                                style={{ background: 'var(--interactive-accent)', color: 'var(--text-on-accent)', border: 'none', padding: '10px', borderRadius: '4px', cursor: 'pointer' }}
+                                onClick={() => handleExport('postman')}
+                            >
+                                Postman Collection (v2.1.0)
+                            </button>
+                            <button
+                                style={{ background: 'var(--background-secondary)', color: 'var(--text-normal)', border: '1px solid var(--background-modifier-border)', padding: '10px', borderRadius: '4px', cursor: 'pointer' }}
+                                onClick={() => handleExport('native')}
+                            >
+                                Obsidian Native Format
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -517,6 +563,40 @@ const HighlightedInput = ({ value, onChange, className, style, placeholder, coll
             <div className="postman-highlighted-input-display">
                 {renderHighlightedText()}
             </div>
+        </div>
+    );
+};
+
+const DividerItem = ({ req, index, dragClass, handleDragStart, handleDragOver, handleDrop, handleDragEnd, onChange, onDelete }: any) => {
+    const [localName, setLocalName] = React.useState(req.name);
+
+    React.useEffect(() => {
+        setLocalName(req.name);
+    }, [req.id, req.name]);
+
+    return (
+        <div
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
+            className={`postman-divider-item ${dragClass}`}
+        >
+            <div className="postman-divider-item-line"></div>
+            <input
+                className="postman-divider-input"
+                value={localName}
+                onChange={(e) => setLocalName(e.target.value)}
+                onBlur={() => { if (localName !== req.name) onChange(localName); }}
+                onKeyDown={(e) => { if(e.key === 'Enter') { e.currentTarget.blur(); } }}
+                title={localName}
+            />
+            <div className="postman-divider-item-line"></div>
+            <button className="btn-ghost" style={{ padding: '0 4px', fontSize: '10px', marginLeft: '5px', opacity: 0.5 }} onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+            }}>×</button>
         </div>
     );
 };

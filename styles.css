@@ -498,7 +498,7 @@
     opacity: 1;
 }
 .postman-divider-item-line {
-    flex: 1;
+    width: 20px;
     height: 1px;
     background-color: var(--background-modifier-border);
 }
@@ -512,9 +512,12 @@
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    width: auto;
-    min-width: 50px;
+    flex: 1;
+    min-width: 0;
     padding: 0 5px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
 }
 .postman-divider-input:focus {
     color: var(--text-normal);

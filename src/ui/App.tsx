@@ -13,6 +13,24 @@ interface AppProps {
     onSave: (data: CollectionData) => void;
 }
 
+
+const HighlightMatch = ({ text, query }: { text: string, query: string }) => {
+    if (!text) return <></>;
+    if (!query) return <>{text}</>;
+    // escape regex chars
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'));
+    return (
+        <>
+            {parts.map((part, i) =>
+                part.toLowerCase() === query.toLowerCase()
+                ? <mark key={i} style={{ backgroundColor: 'var(--text-highlight-bg, rgba(255, 234, 0, 0.5))', color: 'inherit', borderRadius: '2px', padding: '0 2px' }}>{part}</mark>
+                : <span key={i}>{part}</span>
+            )}
+        </>
+    );
+};
+
 export const App: React.FC<AppProps> = ({ data, onSave }) => {
     const [collectionData, setCollectionData] = React.useState<CollectionData>(data);
     const [activeReqId, setActiveReqId] = React.useState<string | null>(
@@ -64,11 +82,24 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
 
     const activeReq = collectionData.requests.find(r => r.id === activeReqId);
 
-    const filteredRequests = collectionData.requests.filter(r => {
-        const nameMatch = (r.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const urlMatch = (r.url || '').toLowerCase().includes(searchQuery.toLowerCase());
-        return nameMatch || urlMatch;
-    });
+    const filteredRequests = React.useMemo(() => {
+        if (!searchQuery) return collectionData.requests;
+        const query = searchQuery.toLowerCase();
+        let inMatchingDivider = false;
+
+        return collectionData.requests.filter(r => {
+            if (r.itemType === 'divider') {
+                const nameMatch = (r.name || '').toLowerCase().includes(query);
+                inMatchingDivider = nameMatch;
+                return nameMatch;
+            } else {
+                if (inMatchingDivider) return true;
+                const nameMatch = (r.name || '').toLowerCase().includes(query);
+                const urlMatch = (r.url || '').toLowerCase().includes(query);
+                return nameMatch || urlMatch;
+            }
+        });
+    }, [collectionData.requests, searchQuery]);
 
     const handleDragStart = (index: number) => {
         setDraggedItemIndex(index);
@@ -267,6 +298,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                                     req={req}
                                     index={index}
                                     dragClass={dragClass}
+                                    searchQuery={searchQuery}
                                     handleDragStart={handleDragStart}
                                     handleDragOver={handleDragOver}
                                     handleDrop={handleDrop}
@@ -296,7 +328,7 @@ export const App: React.FC<AppProps> = ({ data, onSave }) => {
                                 className={`postman-request-item ${activeReqId === req.id ? 'active' : ''} ${dragClass}`}>
                                 <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
                                     <span className={`postman-method-badge method-${req.method}`}>{req.method}</span>
-                                    <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.name}</span>
+                                    <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><HighlightMatch text={req.name} query={searchQuery} /></span>
                                 </div>
                                 <button className="btn-ghost" onClick={(e) => {
                                     e.stopPropagation();
@@ -567,7 +599,7 @@ const HighlightedInput = ({ value, onChange, className, style, placeholder, coll
     );
 };
 
-const DividerItem = ({ req, index, dragClass, handleDragStart, handleDragOver, handleDrop, handleDragEnd, onChange, onDelete }: any) => {
+const DividerItem = ({ req, index, dragClass, searchQuery, handleDragStart, handleDragOver, handleDrop, handleDragEnd, onChange, onDelete }: any) => {
     const [localName, setLocalName] = React.useState(req.name);
 
     React.useEffect(() => {
@@ -584,14 +616,26 @@ const DividerItem = ({ req, index, dragClass, handleDragStart, handleDragOver, h
             className={`postman-divider-item ${dragClass}`}
         >
             <div className="postman-divider-item-line"></div>
-            <input
-                className="postman-divider-input"
-                value={localName}
-                onChange={(e) => setLocalName(e.target.value)}
-                onBlur={() => { if (localName !== req.name) onChange(localName); }}
-                onKeyDown={(e) => { if(e.key === 'Enter') { e.currentTarget.blur(); } }}
-                title={localName}
-            />
+            <div className="postman-divider-input-wrapper" style={{ position: 'relative', background: 'var(--background-secondary)', zIndex: 1, padding: '0 5px' }}>
+                {/* Visual layer for highlighting */}
+                <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em'
+                }}>
+                    <HighlightMatch text={localName} query={searchQuery} />
+                </div>
+                {/* Actual input for editing */}
+                <input
+                    className="postman-divider-input"
+                    value={localName}
+                    onChange={(e) => setLocalName(e.target.value)}
+                    onBlur={() => { if (localName !== req.name) onChange(localName); }}
+                    onKeyDown={(e) => { if(e.key === 'Enter') { e.currentTarget.blur(); } }}
+                    title={localName}
+                    style={{ color: 'transparent', background: 'transparent', caretColor: 'var(--text-normal)' }}
+                />
+            </div>
             <div className="postman-divider-item-line"></div>
             <button className="btn-ghost" style={{ padding: '0 4px', fontSize: '10px', marginLeft: '5px', opacity: 0.5 }} onClick={(e) => {
                 e.stopPropagation();

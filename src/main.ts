@@ -8,9 +8,25 @@ export const VIEW_TYPE_POSTMAN_COLLECTION = 'postman-collection-view';
 
 class PostmanCollectionView extends TextFileView {
     root: Root | null = null;
+    plugin: PostmanClonePlugin;
 
-    constructor(leaf: WorkspaceLeaf) {
+    constructor(leaf: WorkspaceLeaf, plugin: PostmanClonePlugin) {
         super(leaf);
+        this.plugin = plugin;
+
+        // Add "Open as Markdown" action
+        this.addAction('file-code-2', 'Open as Markdown', () => {
+            this.openAsMarkdown();
+        });
+    }
+
+    async openAsMarkdown() {
+        // Record this leaf as deliberately suspended so the layout-change event doesn't immediately snap it back
+        this.plugin.suspendedLeaves.add(this.leaf);
+        await this.leaf.setViewState({
+            type: 'markdown',
+            state: this.leaf.view.getState()
+        });
     }
 
     getViewData(): string {
@@ -70,8 +86,10 @@ class PostmanCollectionView extends TextFileView {
 }
 
 export default class PostmanClonePlugin extends Plugin {
+    suspendedLeaves: Set<WorkspaceLeaf> = new Set();
+
     async onload() {
-        this.registerView(VIEW_TYPE_POSTMAN_COLLECTION, (leaf) => new PostmanCollectionView(leaf));
+        this.registerView(VIEW_TYPE_POSTMAN_COLLECTION, (leaf) => new PostmanCollectionView(leaf, this));
         this.registerExtensions(['postmancollection'], VIEW_TYPE_POSTMAN_COLLECTION);
 
         // This button will appear on all markdown files, but we can configure it to only show
@@ -110,12 +128,33 @@ export default class PostmanClonePlugin extends Plugin {
                 return false;
             }
         });
+
+        // Add file menu option
+        this.registerEvent(
+            this.app.workspace.on('file-menu', (menu, file) => {
+                if (file instanceof TFile && file.extension === 'md') {
+                    menu.addItem((item) => {
+                        item
+                            .setTitle('Open as API Collection')
+                            .setIcon('zap')
+                            .onClick(() => {
+                                this.activateCollectionView(file);
+                            });
+                    });
+                }
+            })
+        );
     }
 
     // Check all leaves to see if any are standard markdown views but have the api-collection frontmatter
     checkActiveLeaves() {
         const leaves = this.app.workspace.getLeavesOfType("markdown");
         for (const leaf of leaves) {
+            if (this.suspendedLeaves.has(leaf)) {
+                // If the user navigated away or closed the leaf, we could clear it from the set,
+                // but for simplicity, we just skip auto-switching it back to Postman view.
+                continue;
+            }
             if (leaf.view instanceof MarkdownView && leaf.view.file) {
                 const file = leaf.view.file;
                 const cache = this.app.metadataCache.getFileCache(file);
@@ -123,6 +162,13 @@ export default class PostmanClonePlugin extends Plugin {
                     // It's a markdown view, but it should be our custom view. Switch it!
                     this.activateCollectionViewForLeaf(file, leaf);
                 }
+            }
+        }
+
+        // Clean up suspended leaves that are no longer markdown views or no longer exist
+        for (const leaf of Array.from(this.suspendedLeaves)) {
+            if (leaf.view.getViewType() !== 'markdown') {
+                this.suspendedLeaves.delete(leaf);
             }
         }
     }
@@ -138,12 +184,17 @@ export default class PostmanClonePlugin extends Plugin {
     }
 
     async activateCollectionView(file: TFile) {
-        let leaf = this.app.workspace.getLeaf(false);
-        if (leaf.view.getViewType() !== VIEW_TYPE_POSTMAN_COLLECTION) {
-            await leaf.setViewState({
-                type: VIEW_TYPE_POSTMAN_COLLECTION,
-                state: { file: file.path }
-            });
+        let leaf = this.app.workspace.getMostRecentLeaf();
+        if (leaf) {
+            if (this.suspendedLeaves.has(leaf)) {
+                this.suspendedLeaves.delete(leaf);
+            }
+            if (leaf.view.getViewType() !== VIEW_TYPE_POSTMAN_COLLECTION) {
+                await leaf.setViewState({
+                    type: VIEW_TYPE_POSTMAN_COLLECTION,
+                    state: { file: file.path }
+                });
+            }
         }
     }
 }

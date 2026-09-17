@@ -11,8 +11,19 @@ export const DEFAULT_COLLECTION_DATA: CollectionData = {
 }
 
 export function getCollectionNameFromNotePath(notePath: string): string {
-    const basename = notePath.split('/').pop() ?? notePath
-    return basename.replace(/\.md$/, '')
+    const normalizedPath = notePath.replace(/\.md$/, '')
+    const parts = normalizedPath.split('/')
+    const basename = parts[parts.length - 1] ?? 'default'
+
+    let hash = 0
+    for (let i = 0; i < normalizedPath.length; i++) {
+        const char = normalizedPath.charCodeAt(i)
+        hash = (hash << 5) - hash + char
+        hash |= 0
+    }
+    const hashStr = (hash >>> 0).toString(16)
+
+    return `${basename}_${hashStr}`
 }
 
 export function getCollectionsDir(pluginDir: string): string {
@@ -33,29 +44,29 @@ export function normalizeRequest(req: unknown): RequestItem | null | undefined {
 
     const headers = (reqAny.headers as Variable[]) ?? []
     const existingAutoKeys = new Set(headers.filter((h: Variable) => h.auto).map((h: Variable) => h.key))
-    const missingAutoHeaders = DEFAULT_AUTO_HEADERS.filter(h => !existingAutoKeys.has(h.key))
+    const missingAutoHeaders = DEFAULT_AUTO_HEADERS.filter((h) => !existingAutoKeys.has(h.key))
     const mergedHeaders = [...missingAutoHeaders, ...headers]
 
     return {
-        id: reqAny.id as string ?? '',
+        id: (reqAny.id as string) ?? '',
         itemType: (reqAny.itemType as 'request' | 'folder') ?? 'request',
-        name: reqAny.name as string ?? 'Unnamed Request',
+        name: (reqAny.name as string) ?? 'Unnamed Request',
         method: (reqAny.method as RequestItem['method']) ?? 'GET',
-        url: reqAny.url as string ?? '',
+        url: (reqAny.url as string) ?? '',
         headers: mergedHeaders,
         queryParams: (reqAny.queryParams as Variable[]) ?? [],
         bodyType: (reqAny.bodyType as RequestItem['bodyType']) ?? 'none',
-        bodyRaw: reqAny.bodyRaw as string ?? '',
+        bodyRaw: (reqAny.bodyRaw as string) ?? '',
         bodyFormData: (reqAny.bodyFormData as RequestItem['bodyFormData']) ?? [],
         bodyFormUrlEncoded: (reqAny.bodyFormUrlEncoded as Variable[]) ?? [],
-        bodyBinaryPath: reqAny.bodyBinaryPath as string ?? '',
+        bodyBinaryPath: (reqAny.bodyBinaryPath as string) ?? '',
         extractionRules: (reqAny.extractionRules as ExtractionRule[]) ?? [],
         auth: (reqAny.auth as AuthConfig) ?? { type: 'none' },
         settings: (reqAny.settings as RequestSettings) ?? { followRedirects: true, maxRedirects: 5, verifySsl: true },
         dependencies: (reqAny.dependencies as string[]) ?? [],
         localVariables: (reqAny.localVariables as Variable[]) ?? [],
-        folderId: reqAny.folderId as string ?? undefined,
-        collapsed: reqAny.collapsed as boolean ?? undefined
+        folderId: (reqAny.folderId as string) ?? undefined,
+        collapsed: (reqAny.collapsed as boolean) ?? undefined
     }
 }
 
@@ -81,7 +92,9 @@ export async function loadCollection(app: App, pluginDir: string, collectionName
             const parsed = JSON.parse(content) as CollectionData
 
             if (parsed && Array.isArray(parsed.requests)) {
-                parsed.requests = parsed.requests.map(normalizeRequest).filter((r): r is RequestItem => r !== null && r !== undefined)
+                parsed.requests = parsed.requests
+                    .map(normalizeRequest)
+                    .filter((r): r is RequestItem => r !== null && r !== undefined)
             }
 
             return parsed
@@ -92,11 +105,16 @@ export async function loadCollection(app: App, pluginDir: string, collectionName
         return defaultData
     } catch (e) {
         console.error('Failed to load collection:', e)
-        return DEFAULT_COLLECTION_DATA
+        return JSON.parse(JSON.stringify(DEFAULT_COLLECTION_DATA)) as CollectionData
     }
 }
 
-export async function saveCollection(app: App, pluginDir: string, collectionName: string, data: CollectionData): Promise<void> {
+export async function saveCollection(
+    app: App,
+    pluginDir: string,
+    collectionName: string,
+    data: CollectionData
+): Promise<void> {
     const adapter = app.vault.adapter
 
     try {

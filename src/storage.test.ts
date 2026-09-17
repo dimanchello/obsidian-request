@@ -11,7 +11,9 @@ describe('normalizeRequest', () => {
             url: 'https://api.example.com'
         }
 
-        const normalized = normalizeRequest(req)!
+        const normalized = normalizeRequest(req)
+        expect(normalized).toBeDefined()
+        if (!normalized) return
 
         expect(normalized.id).toBe('123')
         expect(normalized.name).toBe('Test Request')
@@ -28,7 +30,9 @@ describe('normalizeRequest', () => {
             itemType: 'divider'
         }
 
-        const normalized = normalizeRequest(divider)!
+        const normalized = normalizeRequest(divider)
+        expect(normalized).toBeDefined()
+        if (!normalized) return
 
         expect(normalized.itemType).toBe('divider')
         expect(normalized.name).toBe('API Section')
@@ -41,7 +45,9 @@ describe('normalizeRequest', () => {
             headers: []
         }
 
-        const normalized = normalizeRequest(req)!
+        const normalized = normalizeRequest(req)
+        expect(normalized).toBeDefined()
+        if (!normalized) return
 
         expect(normalized.headers.length).toBeGreaterThanOrEqual(DEFAULT_AUTO_HEADERS.length)
     })
@@ -50,21 +56,23 @@ describe('normalizeRequest', () => {
         const req = {
             id: '789',
             name: 'Request',
-            headers: [
-                { key: 'Accept', value: 'application/json', enabled: true, auto: true }
-            ]
+            headers: [{ key: 'Accept', value: 'application/json', enabled: true, auto: true }]
         }
 
-        const normalized = normalizeRequest(req)!
+        const normalized = normalizeRequest(req)
+        expect(normalized).toBeDefined()
+        if (!normalized) return
 
-        const acceptHeaders = normalized.headers.filter(h => h.key === 'Accept' && h.auto)
+        const acceptHeaders = normalized.headers.filter((h) => h.key === 'Accept' && h.auto)
         expect(acceptHeaders.length).toBe(1)
     })
 
     it('should set default values for missing fields', () => {
         const req = { id: '1' }
 
-        const normalized = normalizeRequest(req)!
+        const normalized = normalizeRequest(req)
+        expect(normalized).toBeDefined()
+        if (!normalized) return
 
         expect(normalized.bodyRaw).toBe('')
         expect(normalized.bodyFormData).toEqual([])
@@ -85,9 +93,10 @@ describe('normalizeRequest', () => {
 
 describe('DEFAULT_COLLECTION_DATA', () => {
     it('should have default environment', () => {
+        const env = DEFAULT_COLLECTION_DATA.environments[0]
         expect(DEFAULT_COLLECTION_DATA.environments.length).toBe(1)
-        expect(DEFAULT_COLLECTION_DATA.environments[0]!.id).toBe('default-env')
-        expect(DEFAULT_COLLECTION_DATA.environments[0]!.name).toBe('Local')
+        expect(env?.id).toBe('default-env')
+        expect(env?.name).toBe('Local')
     })
 
     it('should have empty requests array', () => {
@@ -99,34 +108,56 @@ describe('DEFAULT_COLLECTION_DATA', () => {
     })
 })
 
+function getExpectedName(notePath: string, basename: string): string {
+    const normalizedPath = notePath.replace(/\.md$/, '')
+    let hash = 0
+    for (let i = 0; i < normalizedPath.length; i++) {
+        const char = normalizedPath.charCodeAt(i)
+        hash = (hash << 5) - hash + char
+        hash |= 0
+    }
+    const hashStr = (hash >>> 0).toString(16)
+    return `${basename}_${hashStr}`
+}
+
 describe('getCollectionNameFromNotePath', () => {
     it('should extract name from simple note path', () => {
-        expect(getCollectionNameFromNotePath('MyNote.md')).toBe('MyNote')
+        expect(getCollectionNameFromNotePath('MyNote.md')).toBe(getExpectedName('MyNote.md', 'MyNote'))
     })
 
     it('should extract name from nested note path', () => {
-        expect(getCollectionNameFromNotePath('folder/subfolder/MyNote.md')).toBe('MyNote')
+        expect(getCollectionNameFromNotePath('folder/subfolder/MyNote.md')).toBe(
+            getExpectedName('folder/subfolder/MyNote.md', 'MyNote')
+        )
     })
 
     it('should handle path without .md extension', () => {
-        expect(getCollectionNameFromNotePath('MyNote')).toBe('MyNote')
+        expect(getCollectionNameFromNotePath('MyNote')).toBe(getExpectedName('MyNote', 'MyNote'))
     })
 
     it('should handle path with spaces', () => {
-        expect(getCollectionNameFromNotePath('My API Collection.md')).toBe('My API Collection')
+        expect(getCollectionNameFromNotePath('My API Collection.md')).toBe(
+            getExpectedName('My API Collection.md', 'My API Collection')
+        )
     })
 
     it('should handle deep nested path', () => {
-        expect(getCollectionNameFromNotePath('a/b/c/d/DeepNote.md')).toBe('DeepNote')
+        expect(getCollectionNameFromNotePath('a/b/c/d/DeepNote.md')).toBe(
+            getExpectedName('a/b/c/d/DeepNote.md', 'DeepNote')
+        )
     })
 })
 
 describe('getCollectionsDir', () => {
     it('should build correct path from plugin dir', () => {
-        expect(getCollectionsDir('.obsidian/plugins/obsidian-request')).toBe('.obsidian/plugins/obsidian-request/collections')
+        expect(getCollectionsDir('.obsidian/plugins/obsidian-request')).toBe(
+            '.obsidian/plugins/obsidian-request/collections'
+        )
     })
 
     it('should work with custom config dir', () => {
-        expect(getCollectionsDir('.custom-config/plugins/my-plugin')).toBe('.custom-config/plugins/my-plugin/collections')
+        expect(getCollectionsDir('.custom-config/plugins/my-plugin')).toBe(
+            '.custom-config/plugins/my-plugin/collections'
+        )
     })
 })

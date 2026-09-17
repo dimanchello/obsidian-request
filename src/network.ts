@@ -21,16 +21,21 @@ type RequestResult = {
     timeMs: number
 }
 
-export function substituteVariables(text: string, activeEnvironment?: Environment, localScopeCache?: Record<string, string>): string {
+export function substituteVariables(
+    text: string,
+    activeEnvironment?: Environment,
+    localScopeCache?: Record<string, string>
+): string {
     if (!text) return text
     let result = text
 
     const regex = /{{([^}]+)}}/g
-    result = result.replace(regex, (match, varName) => {
-        const localVal = localScopeCache?.[varName]
+    result = result.replace(regex, (match, varName: string) => {
+        const trimmed = varName.trim()
+        const localVal = localScopeCache?.[trimmed]
         if (localVal !== undefined) return localVal
         if (activeEnvironment) {
-            const envVar = activeEnvironment.variables.find(v => v.key === varName && v.enabled)
+            const envVar = activeEnvironment.variables.find((v) => v.key === trimmed && v.enabled)
             if (envVar) return envVar.value
         }
         return match
@@ -44,95 +49,115 @@ export async function executeRequest(
     collectionData: CollectionData,
     localScopeCache?: Record<string, string>
 ): Promise<RequestResult> {
-    const activeEnv = collectionData.environments.find(e => e.id === collectionData.activeEnvironmentId)
-
-    let url = substituteVariables(request.url, activeEnv, localScopeCache)
-
-    const activeQueryParams = request.queryParams.filter(p => p.enabled && p.key)
-    if (activeQueryParams.length > 0) {
-        const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`)
-        activeQueryParams.forEach(p => {
-            urlObj.searchParams.append(substituteVariables(p.key, activeEnv, localScopeCache), substituteVariables(p.value, activeEnv, localScopeCache))
-        })
-        url = urlObj.toString()
-    }
-
-    const headers: Record<string, string> = {}
-    request.headers.filter(h => h.enabled && h.key).forEach(h => {
-        headers[substituteVariables(h.key, activeEnv, localScopeCache)] = substituteVariables(h.value, activeEnv, localScopeCache)
-    })
-
-    // Apply Auth
-    if (request.auth.type === 'basic' && request.auth.basicUsername) {
-        const user = substituteVariables(request.auth.basicUsername, activeEnv, localScopeCache)
-        const pass = substituteVariables(request.auth.basicPassword ?? '', activeEnv, localScopeCache)
-        headers['Authorization'] = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`
-    } else if (request.auth.type === 'bearer' && request.auth.bearerToken) {
-        headers['Authorization'] = `Bearer ${substituteVariables(request.auth.bearerToken, activeEnv, localScopeCache)}`
-    } else if (request.auth.type === 'apikey' && request.auth.apiKeyKey) {
-        const key = substituteVariables(request.auth.apiKeyKey, activeEnv, localScopeCache)
-        const val = substituteVariables(request.auth.apiKeyValue ?? '', activeEnv, localScopeCache)
-        if (request.auth.apiKeyAddTo === 'header') {
-            headers[key] = val
-        } else {
-            const urlObj = new URL(url)
-            urlObj.searchParams.append(key, val)
-            url = urlObj.toString()
-        }
-    }
-
-    let body: string | ArrayBuffer | undefined = undefined
-
-    const hasFiles = request.method !== 'GET' && request.method !== 'HEAD' && request.bodyType === 'form-data' && request.bodyFormData.some(f => f.enabled && f.type === 'file' && f.value)
-    const hasBinaryBody = request.method !== 'GET' && request.method !== 'HEAD' && request.bodyType === 'binary' && request.bodyBinaryPath
-    const requiresNode = hasFiles || hasBinaryBody || request.settings.verifySsl === false
-
-    if (requiresNode) {
-        return await executeNodeRequest(url, request, headers, activeEnv, localScopeCache)
-    }
-
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-        if (request.bodyType === 'json' || request.bodyType === 'raw') {
-            body = substituteVariables(request.bodyRaw, activeEnv, localScopeCache)
-            if (request.bodyType === 'json' && !headers['Content-Type']) {
-                headers['Content-Type'] = 'application/json'
-            }
-        } else if (request.bodyType === 'form-data') {
-            const boundary = `----ObsidianRequestBoundary${Date.now()}`
-            headers['Content-Type'] = `multipart/form-data; boundary=${boundary}`
-
-            const parts: string[] = []
-            for (const field of request.bodyFormData.filter(f => f.enabled && f.key)) {
-                if (field.type === 'text') {
-                    parts.push(
-                        `--${boundary}\r\n` +
-                        `Content-Disposition: form-data; name="${substituteVariables(field.key, activeEnv, localScopeCache)}"\r\n\r\n` +
-                        `${substituteVariables(field.value, activeEnv, localScopeCache)}\r\n`
-                    )
-                }
-            }
-            parts.push(`--${boundary}--\r\n`)
-            body = parts.join('')
-        } else if (request.bodyType === 'x-www-form-urlencoded') {
-            headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            const params = new URLSearchParams()
-            for (const field of request.bodyFormUrlEncoded.filter(f => f.enabled && f.key)) {
-                params.append(substituteVariables(field.key, activeEnv, localScopeCache), substituteVariables(field.value, activeEnv, localScopeCache))
-            }
-            body = params.toString()
-        }
-    }
-
-    const reqParams: RequestUrlParam = {
-        url,
-        method: request.method,
-        headers,
-        body,
-        throw: false
-    }
-
     const startTime = Date.now()
     try {
+        const activeEnv = collectionData.environments.find((e) => e.id === collectionData.activeEnvironmentId)
+
+        let url = substituteVariables(request.url, activeEnv, localScopeCache)
+        if (url && !/^https?:\/\//i.test(url)) {
+            url = `http://${url}`
+        }
+
+        const activeQueryParams = request.queryParams.filter((p) => p.enabled && p.key)
+        if (activeQueryParams.length > 0) {
+            const urlObj = new URL(url)
+            activeQueryParams.forEach((p) => {
+                urlObj.searchParams.append(
+                    substituteVariables(p.key, activeEnv, localScopeCache),
+                    substituteVariables(p.value, activeEnv, localScopeCache)
+                )
+            })
+            url = urlObj.toString()
+        }
+
+        const headers: Record<string, string> = {}
+        request.headers
+            .filter((h) => h.enabled && h.key)
+            .forEach((h) => {
+                headers[substituteVariables(h.key, activeEnv, localScopeCache)] = substituteVariables(
+                    h.value,
+                    activeEnv,
+                    localScopeCache
+                )
+            })
+
+        // Apply Auth
+        if (request.auth.type === 'basic' && request.auth.basicUsername) {
+            const user = substituteVariables(request.auth.basicUsername, activeEnv, localScopeCache)
+            const pass = substituteVariables(request.auth.basicPassword ?? '', activeEnv, localScopeCache)
+            headers['Authorization'] = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`
+        } else if (request.auth.type === 'bearer' && request.auth.bearerToken) {
+            headers['Authorization'] = `Bearer ${substituteVariables(request.auth.bearerToken, activeEnv, localScopeCache)}`
+        } else if (request.auth.type === 'apikey' && request.auth.apiKeyKey) {
+            const key = substituteVariables(request.auth.apiKeyKey, activeEnv, localScopeCache)
+            const val = substituteVariables(request.auth.apiKeyValue ?? '', activeEnv, localScopeCache)
+            if (request.auth.apiKeyAddTo === 'header') {
+                headers[key] = val
+            } else {
+                const urlObj = new URL(url)
+                urlObj.searchParams.append(key, val)
+                url = urlObj.toString()
+            }
+        }
+
+        let body: string | ArrayBuffer | undefined = undefined
+
+        const hasFiles =
+            request.method !== 'GET' &&
+            request.method !== 'HEAD' &&
+            request.bodyType === 'form-data' &&
+            request.bodyFormData.some((f) => f.enabled && f.type === 'file' && f.value)
+        const hasBinaryBody =
+            request.method !== 'GET' && request.method !== 'HEAD' && request.bodyType === 'binary' && request.bodyBinaryPath
+        const requiresNode = hasFiles || hasBinaryBody || request.settings.verifySsl === false
+
+        if (requiresNode) {
+            return await executeNodeRequest(url, request, headers, activeEnv, localScopeCache)
+        }
+
+        if (request.method !== 'GET' && request.method !== 'HEAD') {
+            if (request.bodyType === 'json' || request.bodyType === 'raw') {
+                body = substituteVariables(request.bodyRaw, activeEnv, localScopeCache)
+                if (request.bodyType === 'json' && !headers['Content-Type']) {
+                    headers['Content-Type'] = 'application/json'
+                }
+            } else if (request.bodyType === 'form-data') {
+                const boundary = `----ObsidianRequestBoundary${Date.now()}`
+                headers['Content-Type'] = `multipart/form-data; boundary=${boundary}`
+
+                const parts: string[] = []
+                for (const field of request.bodyFormData.filter((f) => f.enabled && f.key)) {
+                    if (field.type === 'text') {
+                        parts.push(
+                            `--${boundary}\r\n` +
+                                `Content-Disposition: form-data; name="${substituteVariables(field.key, activeEnv, localScopeCache)}"\r\n\r\n` +
+                                `${substituteVariables(field.value, activeEnv, localScopeCache)}\r\n`
+                        )
+                    }
+                }
+                parts.push(`--${boundary}--\r\n`)
+                body = parts.join('')
+            } else if (request.bodyType === 'x-www-form-urlencoded') {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded'
+                const params = new URLSearchParams()
+                for (const field of request.bodyFormUrlEncoded.filter((f) => f.enabled && f.key)) {
+                    params.append(
+                        substituteVariables(field.key, activeEnv, localScopeCache),
+                        substituteVariables(field.value, activeEnv, localScopeCache)
+                    )
+                }
+                body = params.toString()
+            }
+        }
+
+        const reqParams: RequestUrlParam = {
+            url,
+            method: request.method,
+            headers,
+            body,
+            throw: false
+        }
+
         const obsidianResponse = await requestUrl(reqParams)
         const timeMs = Date.now() - startTime
 
@@ -162,7 +187,14 @@ export async function executeRequest(
     }
 }
 
-async function executeNodeRequest(url: string, request: RequestItem, headers: Record<string, string>, activeEnv?: Environment, localScopeCache?: Record<string, string>): Promise<RequestResult> {
+async function executeNodeRequest(
+    url: string,
+    request: RequestItem,
+    headers: Record<string, string>,
+    activeEnv?: Environment,
+    localScopeCache?: Record<string, string>,
+    redirectCount = 0
+): Promise<RequestResult> {
     const startTime = Date.now()
     return new Promise<RequestResult>((resolve) => {
         try {
@@ -178,13 +210,16 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
                 } else if (request.bodyType === 'x-www-form-urlencoded') {
                     reqHeaders['Content-Type'] = 'application/x-www-form-urlencoded'
                     const params = new URLSearchParams()
-                    for (const field of request.bodyFormUrlEncoded.filter(f => f.enabled && f.key)) {
-                        params.append(substituteVariables(field.key, activeEnv, localScopeCache), substituteVariables(field.value, activeEnv, localScopeCache))
+                    for (const field of request.bodyFormUrlEncoded.filter((f) => f.enabled && f.key)) {
+                        params.append(
+                            substituteVariables(field.key, activeEnv, localScopeCache),
+                            substituteVariables(field.value, activeEnv, localScopeCache)
+                        )
                     }
                     reqBody = params.toString()
                 } else if (request.bodyType === 'form-data') {
                     const form = new FormData()
-                    for (const field of request.bodyFormData.filter(f => f.enabled && f.key)) {
+                    for (const field of request.bodyFormData.filter((f) => f.enabled && f.key)) {
                         const fieldName = substituteVariables(field.key, activeEnv, localScopeCache)
                         if (field.type === 'text') {
                             form.append(fieldName, substituteVariables(field.value, activeEnv, localScopeCache))
@@ -222,6 +257,24 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
             const client = urlObj.protocol === 'https:' ? https : http
 
             const req = client.request(url, reqOptions, (res) => {
+                const statusCode = res.statusCode ?? 200
+                const locationHeader = res.headers['location']
+
+                if (
+                    request.settings.followRedirects !== false &&
+                    locationHeader &&
+                    [301, 302, 303, 307, 308].includes(statusCode) &&
+                    redirectCount < (request.settings.maxRedirects ?? 5)
+                ) {
+                    const nextUrl = new URL(locationHeader, url).toString()
+                    executeNodeRequest(nextUrl, request, headers, activeEnv, localScopeCache, redirectCount + 1).then(
+                        resolve
+                    ).catch((err: unknown) => {
+                        resolve({ error: err instanceof Error ? err.message : 'Redirect failed', timeMs: Date.now() - startTime })
+                    })
+                    return
+                }
+
                 const chunks: Buffer[] = []
                 res.on('data', (chunk) => {
                     chunks.push(Buffer.from(chunk))
@@ -233,23 +286,33 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
 
                     let text = ''
                     let json: unknown = null
-                    const isBinary = !contentType.includes('text') && !contentType.includes('json') && !contentType.includes('xml')
+                    const isBinary =
+                        !contentType.includes('text') && !contentType.includes('json') && !contentType.includes('xml')
 
                     if (!isBinary) {
                         text = buffer.toString('utf8')
                         if (contentType.includes('json')) {
-                            try { json = JSON.parse(text) } catch { json = null }
+                            try {
+                                json = JSON.parse(text)
+                            } catch {
+                                json = null
+                            }
                         }
                     }
 
+                    const slicedArrayBuffer = buffer.buffer.slice(
+                        buffer.byteOffset,
+                        buffer.byteOffset + buffer.byteLength
+                    )
+
                     resolve({
                         response: {
-                            status: res.statusCode ?? 200,
+                            status: statusCode,
                             headers: res.headers,
                             contentType,
                             text,
                             json,
-                            arrayBuffer: buffer.buffer,
+                            arrayBuffer: slicedArrayBuffer,
                             isBinary
                         },
                         timeMs
@@ -261,11 +324,21 @@ async function executeNodeRequest(url: string, request: RequestItem, headers: Re
                 resolve({ error: e.message, timeMs: Date.now() - startTime })
             })
 
+            if (reqBody && typeof (reqBody as unknown as { on?: unknown }).on === 'function') {
+                ;(reqBody as unknown as { on: (event: string, listener: (err: Error) => void) => void }).on(
+                    'error',
+                    (err) => {
+                        req.destroy(err)
+                        resolve({ error: err.message, timeMs: Date.now() - startTime })
+                    }
+                )
+            }
+
             if (typeof reqBody === 'string') {
                 req.write(reqBody)
                 req.end()
             } else if (reqBody) {
-                reqBody.pipe(req)
+                ;(reqBody as fs.ReadStream | FormData).pipe(req as unknown as NodeJS.WritableStream)
             } else {
                 req.end()
             }

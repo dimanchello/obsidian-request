@@ -2,7 +2,14 @@ import { Plugin, TFile, MarkdownPostProcessorContext, MarkdownRenderChild, Edito
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './ui/App'
-import { loadCollection, saveCollection, renameCollection, deleteCollection, getCollectionNameFromNotePath, getCollectionsDir } from './storage'
+import {
+    loadCollection,
+    saveCollection,
+    renameCollection,
+    deleteCollection,
+    getCollectionNameFromNotePath,
+    getCollectionsDir
+} from './storage'
 import { CollectionData } from './types'
 
 function hasRequestCollectionBlock(content: string): boolean {
@@ -11,16 +18,14 @@ function hasRequestCollectionBlock(content: string): boolean {
 
 export default class ObsidianRequestPlugin extends Plugin {
     getPluginDir(): string {
-        return this.manifest.dir!
+        return this.manifest.dir ?? ''
     }
 
-    async onload(): Promise<void> {
+    override async onload(): Promise<void> {
         this.registerMarkdownCodeBlockProcessor('request-collection', this.handleCodeBlock.bind(this))
 
         const lang = ((window.localStorage.getItem('language') ?? navigator.language) || '').slice(0, 2)
-        const cmdName = lang === 'ru'
-            ? 'Вставить шаблон коллекции запросов'
-            : 'Insert Request Collection Template'
+        const cmdName = lang === 'ru' ? 'Вставить шаблон коллекции запросов' : 'Insert Request Collection Template'
 
         this.addCommand({
             id: 'insert-request-collection',
@@ -41,33 +46,32 @@ export default class ObsidianRequestPlugin extends Plugin {
         })
 
         this.registerEvent(
-            this.app.vault.on('rename', async (file, oldPath) => {
-                const tf = file as TFile
-                if (tf.extension !== 'md') return
-                const content = await this.app.vault.read(tf)
-                if (!hasRequestCollectionBlock(content)) return
+            this.app.vault.on('rename', (file, oldPath) => {
+                if (!(file instanceof TFile) || file.extension !== 'md') return
+                void (async () => {
+                    const content = await this.app.vault.read(file)
+                    if (!hasRequestCollectionBlock(content)) return
 
-                const oldName = getCollectionNameFromNotePath(oldPath)
-                const newName = getCollectionNameFromNotePath(tf.path)
-                if (oldName !== newName) {
-                    renameCollection(this.app, this.getPluginDir(), oldName, newName)
-                }
+                    const oldName = getCollectionNameFromNotePath(oldPath)
+                    const newName = getCollectionNameFromNotePath(file.path)
+                    if (oldName !== newName) {
+                        await renameCollection(this.app, this.getPluginDir(), oldName, newName)
+                    }
+                })()
             })
         )
 
         this.registerEvent(
-            this.app.vault.on('delete', async (file) => {
-                const tf = file as TFile
-                if (tf.extension !== 'md') return
-                const content = await this.app.vault.read(tf)
-                if (!hasRequestCollectionBlock(content)) return
-
-                const collectionName = getCollectionNameFromNotePath(tf.path)
-                const filePath = `${getCollectionsDir(this.getPluginDir())}/${collectionName}.json`
-                const exists = await this.app.vault.adapter.exists(filePath)
-                if (exists) {
-                    deleteCollection(this.app, this.getPluginDir(), collectionName)
-                }
+            this.app.vault.on('delete', (file) => {
+                if (!(file instanceof TFile) || file.extension !== 'md') return
+                void (async () => {
+                    const collectionName = getCollectionNameFromNotePath(file.path)
+                    const filePath = `${getCollectionsDir(this.getPluginDir())}/${collectionName}.json`
+                    const exists = await this.app.vault.adapter.exists(filePath)
+                    if (exists) {
+                        await deleteCollection(this.app, this.getPluginDir(), collectionName)
+                    }
+                })()
             })
         )
     }
@@ -76,30 +80,42 @@ export default class ObsidianRequestPlugin extends Plugin {
         const collectionName = getCollectionNameFromNotePath(ctx.sourcePath)
         const pluginDir = this.getPluginDir()
 
-        const container = el.createDiv({ cls: 'obsidian-request-embed', attr: { style: 'height: 600px; border: 1px solid var(--background-modifier-border); border-radius: 4px;' } })
+        const container = el.createDiv({
+            cls: 'obsidian-request-embed',
+            attr: { style: 'height: 600px; border: 1px solid var(--background-modifier-border); border-radius: 4px;' }
+        })
 
-        const reactRoot = container.createDiv({ cls: 'obsidian-request-root', attr: { style: 'height: 100%; width: 100%;' } })
+        const reactRoot = container.createDiv({
+            cls: 'obsidian-request-root',
+            attr: { style: 'height: 100%; width: 100%;' }
+        })
         const root = createRoot(reactRoot)
         let unmounted = false
 
-        loadCollection(this.app, pluginDir, collectionName).then(data => {
-            if (unmounted) return
-            root.render(
-                React.createElement(App, {
-                    data,
-                    onSave: async (newData: CollectionData) => {
-                        await saveCollection(this.app, pluginDir, collectionName, newData)
-                    },
-                    collectionName
-                })
-            )
-        })
+        loadCollection(this.app, pluginDir, collectionName)
+            .then((data) => {
+                if (unmounted) return
+                root.render(
+                    React.createElement(App, {
+                        data,
+                        onSave: (newData: CollectionData) => {
+                            void saveCollection(this.app, pluginDir, collectionName, newData)
+                        },
+                        collectionName
+                    })
+                )
+            })
+            .catch((err: unknown) => {
+                console.error('Failed to load collection:', err)
+            })
 
-        ctx.addChild(new (class extends MarkdownRenderChild {
-            onunload() {
-                unmounted = true
-                root.unmount()
-            }
-        })(el))
+        ctx.addChild(
+            new (class extends MarkdownRenderChild {
+                override onunload() {
+                    unmounted = true
+                    root.unmount()
+                }
+            })(el)
+        )
     }
 }

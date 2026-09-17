@@ -63,9 +63,11 @@ export default [
             'react-hooks': reactHooks
         },
         rules: {
-            // React
+            // React & React Hooks
             'react/react-in-jsx-scope': 'off',
             'react/prop-types': 'off',
+            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/exhaustive-deps': 'warn',
 
             // TypeScript strict
             '@typescript-eslint/no-explicit-any': 'error',
@@ -77,6 +79,9 @@ export default [
             '@typescript-eslint/prefer-for-of': 'error',
             '@typescript-eslint/prefer-optional-chain': 'error',
             '@typescript-eslint/prefer-nullish-coalescing': 'error',
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': 'error',
+            '@typescript-eslint/no-non-null-assertion': 'error',
 
             // General strict
             'no-console': 'warn',
